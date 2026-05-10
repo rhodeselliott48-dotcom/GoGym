@@ -74,20 +74,31 @@ export default function ProfilePage() {
   async function handleSave() {
     if (!profile) return
     setSaving(true)
-    let avatar_url = profile.avatar_url
-    if (avatarFile) {
-      const ext = avatarFile.name.split('.').pop()
-      const path = `avatars/${profile.id}.${ext}`
-      await supabase.storage.from('workout-photos').upload(path, avatarFile, { upsert: true })
-      const { data } = supabase.storage.from('workout-photos').getPublicUrl(path)
-      avatar_url = data.publicUrl
+    try {
+      let avatar_url = profile.avatar_url
+      if (avatarFile) {
+        const ext = avatarFile.name.split('.').pop()
+        const path = `avatars/${profile.id}.${ext}`
+        await supabase.storage.from('workout-photos').upload(path, avatarFile, { upsert: true })
+        const { data } = supabase.storage.from('workout-photos').getPublicUrl(path)
+        avatar_url = data.publicUrl
+      }
+      const { error } = await supabase.from('profiles').update({
+        full_name: fullName, bio, avatar_url, gym_location: gymLocation, city,
+        favorite_split: favSplit, favorite_exercises: favExercises.filter(Boolean),
+      }).eq('id', profile.id)
+      
+      if (error) { alert('Save failed: ' + error.message); return }
+      
+      setProfile(prev => prev ? { ...prev, full_name: fullName, bio, avatar_url, gym_location: gymLocation, city, favorite_split: favSplit } : prev)
+      setEditing(false)
+      setAvatarFile(null)
+      setAvatarPreview(null)
+    } catch (err) {
+      alert('Something went wrong. Try again.')
+    } finally {
+      setSaving(false)
     }
-    await supabase.from('profiles').update({
-      full_name: fullName, bio, avatar_url, gym_location: gymLocation, city,
-      favorite_split: favSplit, favorite_exercises: favExercises.filter(Boolean),
-    }).eq('id', profile.id)
-    setProfile(prev => prev ? { ...prev, full_name: fullName, bio, avatar_url, gym_location: gymLocation, city, favorite_split: favSplit } : prev)
-    setEditing(false); setSaving(false); setAvatarFile(null); setAvatarPreview(null)
   }
 
   const badges = getBadges(posts, friendCount)
