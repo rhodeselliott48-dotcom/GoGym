@@ -55,7 +55,7 @@ export default function ProfilePage() {
 
       const [{ data: p }, { data: w }, { count: fc }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('workout_posts').select('*, profiles(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('workout_posts').select(`*, profiles(id, username, full_name, avatar_url, bio, gym_location, city, favorite_split, favorite_exercises, created_at)`).eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('friendships').select('*', { count: 'exact', head: true }).or(`user_id.eq.${user.id},friend_id.eq.${user.id}`).eq('status', 'accepted'),
       ])
 
