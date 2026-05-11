@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { Profile, WorkoutPost } from '@/lib/types'
 import WorkoutCard from '@/components/WorkoutCard'
-import { LogOut, Camera, Edit2, Check, X, Plus } from 'lucide-react'
+import { LogOut, Camera, Edit2, Check, X } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -41,6 +41,7 @@ export default function ProfilePage() {
   const [favSplit, setFavSplit] = useState('')
   const [favExercises, setFavExercises] = useState<string[]>(['','',''])
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const avatarRef = useRef<HTMLInputElement>(null)
@@ -59,8 +60,11 @@ export default function ProfilePage() {
       ])
 
       if (p) {
-        setProfile(p); setFullName(p.full_name ?? ''); setBio(p.bio ?? '')
-        setGymLocation(p.gym_location ?? ''); setCity(p.city ?? '')
+        setProfile(p)
+        setFullName(p.full_name ?? '')
+        setBio(p.bio ?? '')
+        setGymLocation(p.gym_location ?? '')
+        setCity(p.city ?? '')
         setFavSplit(p.favorite_split ?? '')
         setFavExercises(p.favorite_exercises?.length ? [...p.favorite_exercises, ...Array(3).fill('')].slice(0,3) : ['','',''])
       }
@@ -74,28 +78,67 @@ export default function ProfilePage() {
   async function handleSave() {
     if (!profile) return
     setSaving(true)
+    setSaveError('')
+
     try {
       let avatar_url = profile.avatar_url
+
       if (avatarFile) {
         const ext = avatarFile.name.split('.').pop()
-        const path = `avatars/${profile.id}.${ext}`
-        await supabase.storage.from('workout-photos').upload(path, avatarFile, { upsert: true })
-        const { data } = supabase.storage.from('workout-photos').getPublicUrl(path)
-        avatar_url = data.publicUrl
+        const uniquePath = `avatars/${profile.id}-${Date.now()}.${ext}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('workout-photos')
+          .upload(uniquePath, avatarFile, { cacheControl: '3600', upsert: false })
+
+        if (uploadError) {
+          setSaveError('Photo upload failed: ' + uploadError.message)
+          setSaving(false)
+          return
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('workout-photos')
+          .getPublicUrl(uniquePath)
+
+        avatar_url = urlData.publicUrl
       }
-      const { error } = await supabase.from('profiles').update({
-        full_name: fullName, bio, avatar_url, gym_location: gymLocation, city,
-        favorite_split: favSplit, favorite_exercises: favExercises.filter(Boolean),
-      }).eq('id', profile.id)
-      
-      if (error) { alert('Save failed: ' + error.message); return }
-      
-      setProfile(prev => prev ? { ...prev, full_name: fullName, bio, avatar_url, gym_location: gymLocation, city, favorite_split: favSplit } : prev)
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: fullName,
+          bio,
+          avatar_url,
+          gym_location: gymLocation,
+          city,
+          favorite_split: favSplit,
+          favorite_exercises: favExercises.filter(Boolean),
+        })
+        .eq('id', profile.id)
+
+      if (updateError) {
+        setSaveError('Save failed: ' + updateError.message)
+        setSaving(false)
+        return
+      }
+
+      setProfile(prev => prev ? {
+        ...prev,
+        full_name: fullName,
+        bio,
+        avatar_url,
+        gym_location: gymLocation,
+        city,
+        favorite_split: favSplit,
+        favorite_exercises: favExercises.filter(Boolean),
+      } : prev)
+
       setEditing(false)
       setAvatarFile(null)
       setAvatarPreview(null)
-    } catch (err) {
-      alert('Something went wrong. Try again.')
+    } catch (err: any) {
+      setSaveError('Something went wrong: ' + err.message)
     } finally {
       setSaving(false)
     }
@@ -119,11 +162,13 @@ export default function ProfilePage() {
             <button onClick={() => setEditing(true)} className="text-muted hover:text-white press p-2"><Edit2 size={18} /></button>
           ) : (
             <div className="flex gap-1">
-              <button onClick={() => setEditing(false)} className="text-muted press p-2"><X size={18} /></button>
-              <button onClick={handleSave} disabled={saving} className="text-brand press p-2"><Check size={18} /></button>
+              <button onClick={() => { setEditing(false); setSaveError('') }} className="text-muted press p-2"><X size={18} /></button>
+              <button onClick={handleSave} disabled={saving} className="text-brand press p-2 flex items-center gap-1">
+                {saving ? <div className="w-4 h-4 rounded-full border-2 border-brand border-t-transparent animate-spin" /> : <Check size={18} />}
+              </button>
             </div>
           )}
-          <Link href="/profile/friends" className="text-muted hover:text-white press p-2 text-xs font-semibold">Friends</Link>
+          <Link href="/profile/friends" className="text-muted hover:text-white press px-2 py-1 text-xs font-semibold">Friends</Link>
           <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth') }}
             className="text-muted hover:text-red-400 press p-2"><LogOut size={18} /></button>
         </div>
@@ -135,7 +180,11 @@ export default function ProfilePage() {
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-surface-3 border-2 border-brand/50 overflow-hidden">
               {(avatarPreview || profile?.avatar_url) ? (
-                <Image src={avatarPreview || profile!.avatar_url!} alt="Avatar" width={80} height={80} className="object-cover w-full h-full" />
+                <img
+                  src={avatarPreview || profile!.avatar_url!}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-display text-3xl text-brand">
                   {profile?.username?.[0]?.toUpperCase()}
@@ -149,7 +198,10 @@ export default function ProfilePage() {
               </button>
             )}
             <input ref={avatarRef} type="file" accept="image/*" className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) { setAvatarFile(f); setAvatarPreview(URL.createObjectURL(f)) } }} />
+              onChange={e => {
+                const f = e.target.files?.[0]
+                if (f) { setAvatarFile(f); setAvatarPreview(URL.createObjectURL(f)) }
+              }} />
           </div>
           <div className="flex-1">
             <p className="text-brand font-semibold text-sm">@{profile?.username}</p>
@@ -164,6 +216,10 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+
+        {saveError && (
+          <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3 border border-red-400/20">{saveError}</p>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-2">
@@ -180,16 +236,16 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* Bio */}
+        {/* Edit fields */}
         {editing ? (
           <div className="space-y-3">
             <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Write your bio..." rows={2}
               className="w-full bg-surface-2 border border-border rounded-xl px-4 py-3 text-white placeholder-muted text-sm resize-none" />
             <div className="grid grid-cols-2 gap-3">
               <input value={gymLocation} onChange={e => setGymLocation(e.target.value)} placeholder="Your gym"
-                className="bg-surface-2 border border-border rounded-xl px-3 py-2.5 text-white text-sm" />
+                className="bg-surface-2 border border-border rounded-xl px-3 py-2.5 text-white text-sm placeholder-muted" />
               <input value={city} onChange={e => setCity(e.target.value)} placeholder="City"
-                className="bg-surface-2 border border-border rounded-xl px-3 py-2.5 text-white text-sm" />
+                className="bg-surface-2 border border-border rounded-xl px-3 py-2.5 text-white text-sm placeholder-muted" />
             </div>
             <select value={favSplit} onChange={e => setFavSplit(e.target.value)}
               className="w-full bg-surface-2 border border-border rounded-xl px-3 py-2.5 text-white text-sm">
@@ -201,9 +257,13 @@ export default function ProfilePage() {
               {favExercises.map((ex, i) => (
                 <input key={i} value={ex} onChange={e => setFavExercises(prev => prev.map((v, idx) => idx === i ? e.target.value : v))}
                   placeholder={`Exercise ${i+1}`}
-                  className="w-full bg-surface-2 border border-border rounded-xl px-3 py-2.5 text-white text-sm" />
+                  className="w-full bg-surface-2 border border-border rounded-xl px-3 py-2.5 text-white text-sm placeholder-muted" />
               ))}
             </div>
+            <button onClick={handleSave} disabled={saving}
+              className="w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press disabled:opacity-50 shadow-lg shadow-brand/20 tracking-wide">
+              {saving ? 'SAVING...' : 'SAVE PROFILE ✓'}
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
