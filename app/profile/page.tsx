@@ -6,7 +6,6 @@ import BottomNav from '@/components/BottomNav'
 import { Profile, WorkoutPost } from '@/lib/types'
 import WorkoutCard from '@/components/WorkoutCard'
 import { LogOut, Camera, Edit2, Check, X } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
 
 const FAV_SPLITS = ['PPL', 'Bro Split', 'Upper/Lower', '5/3/1', 'Full Body', 'PHUL', 'Other']
@@ -45,17 +44,19 @@ export default function ProfilePage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const avatarRef = useRef<HTMLInputElement>(null)
+  const supabaseRef = useRef(createClient())
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
+    const supabase = supabaseRef.current
+
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth'); return }
 
       const [{ data: p }, { data: w }, { count: fc }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('workout_posts').select(`*, profiles(id, username, full_name, avatar_url, bio, gym_location, city, favorite_split, favorite_exercises, created_at)`).eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('workout_posts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('friendships').select('*', { count: 'exact', head: true }).or(`user_id.eq.${user.id},friend_id.eq.${user.id}`).eq('status', 'accepted'),
       ])
 
@@ -67,8 +68,13 @@ export default function ProfilePage() {
         setCity(p.city ?? '')
         setFavSplit(p.favorite_split ?? '')
         setFavExercises(p.favorite_exercises?.length ? [...p.favorite_exercises, ...Array(3).fill('')].slice(0,3) : ['','',''])
+
+        if (w) {
+          const postsWithProfile = w.map((post: any) => ({ ...post, profiles: p }))
+          setPosts(postsWithProfile as WorkoutPost[])
+        }
       }
-      if (w) setPosts(w as WorkoutPost[])
+
       setFriendCount(fc || 0)
       setLoading(false)
     }
@@ -76,6 +82,7 @@ export default function ProfilePage() {
   }, [])
 
   async function handleSave() {
+    const supabase = supabaseRef.current
     if (!profile) return
     setSaving(true)
     setSaveError('')
@@ -86,7 +93,6 @@ export default function ProfilePage() {
       if (avatarFile) {
         const ext = avatarFile.name.split('.').pop()
         const uniquePath = `avatars/${profile.id}-${Date.now()}.${ext}`
-
         const { error: uploadError } = await supabase.storage
           .from('workout-photos')
           .upload(uniquePath, avatarFile, { cacheControl: '3600', upsert: false })
@@ -97,10 +103,7 @@ export default function ProfilePage() {
           return
         }
 
-        const { data: urlData } = supabase.storage
-          .from('workout-photos')
-          .getPublicUrl(uniquePath)
-
+        const { data: urlData } = supabase.storage.from('workout-photos').getPublicUrl(uniquePath)
         avatar_url = urlData.publicUrl
       }
 
@@ -169,22 +172,17 @@ export default function ProfilePage() {
             </div>
           )}
           <Link href="/profile/friends" className="text-muted hover:text-white press px-2 py-1 text-xs font-semibold">Friends</Link>
-          <button onClick={async () => { await supabase.auth.signOut(); router.push('/auth') }}
+          <button onClick={async () => { await supabaseRef.current.auth.signOut(); router.push('/auth') }}
             className="text-muted hover:text-red-400 press p-2"><LogOut size={18} /></button>
         </div>
       </header>
 
       <div className="px-4 pt-6 pb-4 space-y-5">
-        {/* Avatar + name */}
         <div className="flex items-center gap-4">
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-surface-3 border-2 border-brand/50 overflow-hidden">
               {(avatarPreview || profile?.avatar_url) ? (
-                <img
-                  src={avatarPreview || profile!.avatar_url!}
-                  alt="Avatar"
-                  className="w-full h-full object-cover"
-                />
+                <img src={avatarPreview || profile!.avatar_url!} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-display text-3xl text-brand">
                   {profile?.username?.[0]?.toUpperCase()}
@@ -221,7 +219,6 @@ export default function ProfilePage() {
           <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3 border border-red-400/20">{saveError}</p>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-2">
           {[
             { label: 'Workouts', value: posts.length },
@@ -236,7 +233,6 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* Edit fields */}
         {editing ? (
           <div className="space-y-3">
             <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Write your bio..." rows={2}
@@ -279,7 +275,6 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Badges */}
         <div>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-1 h-5 bg-brand rounded-full" />
@@ -303,7 +298,6 @@ export default function ProfilePage() {
         </Link>
       </div>
 
-      {/* Posts */}
       <div className="px-4 space-y-4 stagger">
         <div className="flex items-center gap-2">
           <div className="w-1 h-5 bg-brand rounded-full" />
