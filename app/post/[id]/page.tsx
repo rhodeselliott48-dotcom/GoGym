@@ -5,8 +5,7 @@ import { useParams } from 'next/navigation'
 import { WorkoutPost, Comment } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 import BodyMap from '@/components/BodyMap'
-import { ArrowLeft, Heart, Star, Clock, MapPin, Send, Dumbbell } from 'lucide-react'
-import Image from 'next/image'
+import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -30,6 +29,7 @@ export default function PostDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -39,15 +39,12 @@ export default function PostDetailPage() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      // Fetch post without join
       const { data: p } = await supabase.from('workout_posts').select('*').eq('id', id).single()
 
       if (p) {
-        // Fetch profile separately
         const { data: prof } = await supabase.from('profiles').select('*').eq('id', p.user_id).single()
         setPost({ ...p, profiles: prof } as WorkoutPost)
 
-        // Fetch likes and comments
         const [{ count: likes }, likedRes, { data: cmts }] = await Promise.all([
           supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', id),
           user ? supabase.from('post_likes').select('id').eq('post_id', id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
@@ -56,7 +53,6 @@ export default function PostDetailPage() {
         setLikeCount(likes || 0)
         setLiked(!!likedRes.data)
 
-        // Fetch profiles for comments separately
         if (cmts && cmts.length > 0) {
           const commentUserIds = [...new Set(cmts.map((c: any) => c.user_id))]
           const { data: commentProfiles } = await supabase.from('profiles').select('*').in('id', commentUserIds)
@@ -82,6 +78,13 @@ export default function PostDetailPage() {
       setLikeCount(c => c + 1)
     }
     setLiked(!liked)
+  }
+
+  async function handleDelete() {
+    if (!confirm('Delete this post? This cannot be undone.')) return
+    setDeleting(true)
+    await supabaseRef.current.from('workout_posts').delete().eq('id', id)
+    window.location.href = '/feed'
   }
 
   async function submitComment() {
@@ -122,14 +125,21 @@ export default function PostDetailPage() {
           <h2 className="font-display text-xl tracking-wide">{post.title || 'Workout'}</h2>
           <p className="text-muted text-xs">{new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
         </div>
-        <button onClick={toggleLike} className="flex items-center gap-1.5 press">
-          <Heart size={20} className={liked ? 'fill-brand text-brand' : 'text-muted'} strokeWidth={liked ? 0 : 1.8} />
-          <span className={`text-sm font-bold ${liked ? 'text-brand' : 'text-muted'}`}>{likeCount}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {currentUserId === post.user_id && (
+            <button onClick={handleDelete} disabled={deleting}
+              className="text-red-400 hover:text-red-300 press p-1 disabled:opacity-50">
+              <Trash2 size={18} />
+            </button>
+          )}
+          <button onClick={toggleLike} className="flex items-center gap-1.5 press">
+            <Heart size={20} className={liked ? 'fill-brand text-brand' : 'text-muted'} strokeWidth={liked ? 0 : 1.8} />
+            <span className={`text-sm font-bold ${liked ? 'text-brand' : 'text-muted'}`}>{likeCount}</span>
+          </button>
+        </div>
       </header>
 
       <div className="px-4 py-5 space-y-5">
-        {/* User info */}
         <div className="flex items-center gap-3">
           <Link href={`/profile/${post.profiles?.username}`}>
             <div className="w-12 h-12 rounded-full bg-surface-3 border-2 border-brand/30 overflow-hidden">
@@ -154,7 +164,6 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Tags */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
             <Dumbbell size={11} />{post.workout_type}
@@ -165,7 +174,6 @@ export default function PostDetailPage() {
           )}
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Exercises', value: post.exercises?.length || 0 },
@@ -179,7 +187,6 @@ export default function PostDetailPage() {
           ))}
         </div>
 
-        {/* PRs */}
         {prExercises.length > 0 && (
           <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
             <p className="text-yellow-400 font-bold text-sm flex items-center gap-2 mb-2">
@@ -191,12 +198,10 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Caption */}
         {post.caption && (
           <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>
         )}
 
-        {/* Exercise list */}
         {post.exercises?.length > 0 && (
           <div>
             <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Exercises</h3>
@@ -228,7 +233,6 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Body Map */}
         {uniqueMuscles.length > 0 && (
           <div className="bg-surface-2 rounded-2xl border border-border p-4">
             <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-1">Muscles Targeted</h3>
@@ -237,7 +241,6 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Photos */}
         {post.photo_urls?.length > 0 && (
           <div>
             <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Session Photos</h3>
@@ -252,7 +255,6 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Comments */}
         <div>
           <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">
             Comments {comments.length > 0 && `(${comments.length})`}
