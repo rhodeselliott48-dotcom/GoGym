@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { WorkoutPost } from '@/lib/types'
 import WorkoutCard from '@/components/WorkoutCard'
@@ -13,50 +13,38 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [activeToday, setActiveToday] = useState<{username: string, id: string}[]>([])
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
 
   useEffect(() => {
+    const supabase = supabaseRef.current
+
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
       const { data, error } = await supabase
         .from('workout_posts')
-        .select(`
-          *,
-          profiles (
-            id,
-            username,
-            full_name,
-            avatar_url,
-            bio,
-            gym_location,
-            city,
-            favorite_split,
-            favorite_exercises,
-            created_at
-          )
-        `)
+        .select('id, title, caption, workout_type, mood, session_type, photo_urls, exercises, duration_minutes, gym_location, city, mentions, group_name, created_at, user_id, profiles(id, username, full_name, avatar_url, bio, gym_location, city, favorite_split, favorite_exercises, created_at)')
         .order('created_at', { ascending: false })
         .limit(30)
 
       if (error) {
-        console.error('Feed error:', error)
+        console.error('Feed error:', error.message)
         setLoading(false)
         return
       }
 
-      if (data) {
+      if (data && data.length > 0) {
         const withCounts = await Promise.all(data.map(async (post: any) => {
-          const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
+          const [likesRes, commentsRes, likedRes] = await Promise.all([
             supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
             user ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
           ])
           return {
             ...post,
-            likes_count: likes || 0,
-            comments_count: comments || 0,
+            likes_count: likesRes.count || 0,
+            comments_count: commentsRes.count || 0,
             user_has_liked: !!likedRes.data
           }
         }))
@@ -73,9 +61,12 @@ export default function FeedPage() {
             return acc
           }, [])
         setActiveToday(active)
+      } else {
+        setPosts([])
       }
       setLoading(false)
     }
+
     load()
   }, [])
 
