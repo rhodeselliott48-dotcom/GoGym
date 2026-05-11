@@ -97,7 +97,8 @@ export default function CreatePage() {
       group_name: groupName || null,
     })
 
-    if (postError) { setError(postError.message); setLoading(false); return }
+    if (postError) { setError('Post failed: ' + postError.message); setLoading(false); return }
+    	console.error('Post error:', postError)
     router.push('/feed')
   }
 
