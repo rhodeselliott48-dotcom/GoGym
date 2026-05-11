@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { WorkoutPost, Comment } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 import BodyMap from '@/components/BodyMap'
@@ -30,30 +30,49 @@ export default function PostDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
 
   useEffect(() => {
+    const supabase = supabaseRef.current
+
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      const { data: p } = await supabase.from('workout_posts').select('*, profiles(*)').eq('id', id).single()
-      if (p) setPost(p as WorkoutPost)
+      // Fetch post without join
+      const { data: p } = await supabase.from('workout_posts').select('*').eq('id', id).single()
 
-      const [{ count: likes }, { data: userLike }, { data: cmts }] = await Promise.all([
-        supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', id),
-        user ? supabase.from('post_likes').select('id').eq('post_id', id).eq('user_id', user.id).single() : Promise.resolve({ data: null }),
-        supabase.from('comments').select('*, profiles(*)').eq('post_id', id).order('created_at'),
-      ])
-      setLikeCount(likes || 0)
-      setLiked(!!userLike)
-      if (cmts) setComments(cmts as Comment[])
+      if (p) {
+        // Fetch profile separately
+        const { data: prof } = await supabase.from('profiles').select('*').eq('id', p.user_id).single()
+        setPost({ ...p, profiles: prof } as WorkoutPost)
+
+        // Fetch likes and comments
+        const [{ count: likes }, likedRes, { data: cmts }] = await Promise.all([
+          supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', id),
+          user ? supabase.from('post_likes').select('id').eq('post_id', id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+          supabase.from('comments').select('*').eq('post_id', id).order('created_at'),
+        ])
+        setLikeCount(likes || 0)
+        setLiked(!!likedRes.data)
+
+        // Fetch profiles for comments separately
+        if (cmts && cmts.length > 0) {
+          const commentUserIds = [...new Set(cmts.map((c: any) => c.user_id))]
+          const { data: commentProfiles } = await supabase.from('profiles').select('*').in('id', commentUserIds)
+          const profileMap: Record<string, any> = {}
+          if (commentProfiles) commentProfiles.forEach((p: any) => { profileMap[p.id] = p })
+          const cmtsWithProfiles = cmts.map((c: any) => ({ ...c, profiles: profileMap[c.user_id] || { username: 'unknown' } }))
+          setComments(cmtsWithProfiles as Comment[])
+        }
+      }
       setLoading(false)
     }
     load()
   }, [id])
 
   async function toggleLike() {
+    const supabase = supabaseRef.current
     if (!currentUserId) return
     if (liked) {
       await supabase.from('post_likes').delete().eq('post_id', id).eq('user_id', currentUserId)
@@ -66,11 +85,15 @@ export default function PostDetailPage() {
   }
 
   async function submitComment() {
+    const supabase = supabaseRef.current
     if (!newComment.trim() || !currentUserId) return
     const { data } = await supabase.from('comments')
       .insert({ post_id: id, user_id: currentUserId, content: newComment.trim() })
-      .select('*, profiles(*)').single()
-    if (data) setComments(prev => [...prev, data as Comment])
+      .select('*').single()
+    if (data) {
+      const { data: prof } = await supabase.from('profiles').select('*').eq('id', currentUserId).single()
+      setComments(prev => [...prev, { ...data, profiles: prof } as Comment])
+    }
     setNewComment('')
   }
 
@@ -85,9 +108,9 @@ export default function PostDetailPage() {
     </div>
   )
   if (!post) return (
-    <div className="min-h-screen bg-[#0f0f0f] flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-[#0f0f0f] flex flex-col items-center justify-center gap-4">
       <p className="text-white font-display text-2xl">Post not found</p>
-      <Link href="/feed" className="text-brand mt-4 text-sm">← Back to feed</Link>
+      <Link href="/feed" className="text-brand text-sm">Back to feed</Link>
     </div>
   )
 
@@ -108,20 +131,20 @@ export default function PostDetailPage() {
       <div className="px-4 py-5 space-y-5">
         {/* User info */}
         <div className="flex items-center gap-3">
-          <Link href={`/profile/${post.profiles.username}`}>
+          <Link href={`/profile/${post.profiles?.username}`}>
             <div className="w-12 h-12 rounded-full bg-surface-3 border-2 border-brand/30 overflow-hidden">
-              {post.profiles.avatar_url ? (
-                <Image src={post.profiles.avatar_url} alt="" width={48} height={48} className="object-cover" />
+              {post.profiles?.avatar_url ? (
+                <img src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-brand font-display text-xl">
-                  {post.profiles.username[0].toUpperCase()}
+                  {post.profiles?.username?.[0]?.toUpperCase()}
                 </div>
               )}
             </div>
           </Link>
           <div>
-            <Link href={`/profile/${post.profiles.username}`}>
-              <p className="font-semibold text-white">@{post.profiles.username}</p>
+            <Link href={`/profile/${post.profiles?.username}`}>
+              <p className="font-semibold text-white">@{post.profiles?.username}</p>
             </Link>
             <div className="flex items-center gap-3 text-muted text-xs mt-0.5">
               <span>{timeAgo(post.created_at)}</span>
@@ -131,7 +154,7 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Tags + stats */}
+        {/* Tags */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
             <Dumbbell size={11} />{post.workout_type}
@@ -142,7 +165,7 @@ export default function PostDetailPage() {
           )}
         </div>
 
-        {/* Stats row */}
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Exercises', value: post.exercises?.length || 0 },
@@ -163,7 +186,7 @@ export default function PostDetailPage() {
               <Star size={14} className="fill-yellow-400" /> Personal Records 🏆
             </p>
             {prExercises.map((e, i) => (
-              <p key={i} className="text-yellow-300/80 text-sm">{e.name} — {e.sets} sets × {e.reps} reps</p>
+              <p key={i} className="text-yellow-300/80 text-sm">{e.name} — {e.sets} sets × {e.reps} reps {e.weight ? `@ ${e.weight}lbs` : ''}</p>
             ))}
           </div>
         )}
@@ -193,9 +216,10 @@ export default function PostDetailPage() {
                           {info && <p className="text-muted text-xs mt-0.5">{info.description.slice(0, 60)}...</p>}
                         </div>
                       </div>
-                      <p className="text-brand font-semibold text-sm text-right flex-shrink-0">
-                        {ex.sets}×{ex.reps}
-                      </p>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-brand font-semibold text-sm">{ex.sets}×{ex.reps}</p>
+                        {ex.weight && <p className="text-muted text-xs">{ex.weight} lbs</p>}
+                      </div>
                     </div>
                   </div>
                 )
@@ -221,8 +245,7 @@ export default function PostDetailPage() {
               {post.photo_urls.map((url, i) => (
                 <button key={i} onClick={() => setSelectedPhoto(url)}
                   className={`relative rounded-2xl overflow-hidden ${i === 0 && post.photo_urls.length % 2 !== 0 ? 'col-span-2' : ''}`}>
-                  <Image src={url} alt={`photo ${i+1}`} width={400} height={300}
-                    className="w-full h-48 object-cover" />
+                  <img src={url} alt={`photo ${i+1}`} className="w-full h-48 object-cover" />
                 </button>
               ))}
             </div>
@@ -234,18 +257,16 @@ export default function PostDetailPage() {
           <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">
             Comments {comments.length > 0 && `(${comments.length})`}
           </h3>
-
           {comments.length === 0 && (
             <p className="text-muted text-sm text-center py-4">No comments yet. Be the first!</p>
           )}
-
           <div className="space-y-3 mb-4">
             {comments.map(c => (
               <div key={c.id} className="flex gap-3">
                 <Link href={`/profile/${c.profiles.username}`}>
                   <div className="w-8 h-8 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
                     {c.profiles.avatar_url ? (
-                      <Image src={c.profiles.avatar_url} alt="" width={32} height={32} className="object-cover" />
+                      <img src={c.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-brand text-xs font-bold">
                         {c.profiles.username[0].toUpperCase()}
@@ -264,8 +285,7 @@ export default function PostDetailPage() {
             ))}
           </div>
 
-          {/* Comment input */}
-          <div className="flex gap-2 sticky bottom-20">
+          <div className="flex gap-2">
             <input value={newComment} onChange={e => setNewComment(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submitComment()}
               placeholder="Add a comment..." maxLength={200}
@@ -278,12 +298,10 @@ export default function PostDetailPage() {
         </div>
       </div>
 
-      {/* Lightbox */}
       {selectedPhoto && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
           onClick={() => setSelectedPhoto(null)}>
-          <Image src={selectedPhoto} alt="Photo" width={600} height={600}
-            className="max-w-full max-h-full object-contain rounded-2xl" />
+          <img src={selectedPhoto} alt="Photo" className="max-w-full max-h-full object-contain rounded-2xl" />
         </div>
       )}
 
