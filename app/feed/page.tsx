@@ -22,9 +22,10 @@ export default function FeedPage() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      const { data, error } = await supabase
+      // Fetch posts without join
+      const { data: postsData, error } = await supabase
         .from('workout_posts')
-        .select('id, title, caption, workout_type, mood, session_type, photo_urls, exercises, duration_minutes, gym_location, city, mentions, group_name, created_at, user_id, profiles(id, username, full_name, avatar_url, bio, gym_location, city, favorite_split, favorite_exercises, created_at)')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(30)
 
@@ -34,36 +35,46 @@ export default function FeedPage() {
         return
       }
 
-      if (data && data.length > 0) {
-        const withCounts = await Promise.all(data.map(async (post: any) => {
-          const [likesRes, commentsRes, likedRes] = await Promise.all([
-            supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            user ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
-          ])
-          return {
-            ...post,
-            likes_count: likesRes.count || 0,
-            comments_count: commentsRes.count || 0,
-            user_has_liked: !!likedRes.data
-          }
-        }))
-        setPosts(withCounts as WorkoutPost[])
-
-        const today = new Date()
-        today.setHours(0,0,0,0)
-        const active = withCounts
-          .filter((p: any) => new Date(p.created_at) >= today && p.user_id !== user?.id && p.profiles)
-          .reduce((acc: any[], p: any) => {
-            if (!acc.find((a) => a.id === p.user_id)) {
-              acc.push({ username: p.profiles.username, id: p.user_id })
-            }
-            return acc
-          }, [])
-        setActiveToday(active)
-      } else {
+      if (!postsData || postsData.length === 0) {
         setPosts([])
+        setLoading(false)
+        return
       }
+
+      // Fetch profiles separately
+      const userIds = [...new Set(postsData.map((p: any) => p.user_id))]
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', userIds)
+
+      const profilesMap: Record<string, any> = {}
+      if (profilesData) {
+        profilesData.forEach((p: any) => { profilesMap[p.id] = p })
+      }
+
+      // Merge posts with profiles
+      const merged = postsData.map((post: any) => ({
+        ...post,
+        profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
+        likes_count: 0,
+        comments_count: 0,
+        user_has_liked: false,
+      }))
+
+      setPosts(merged as WorkoutPost[])
+
+      const today = new Date()
+      today.setHours(0,0,0,0)
+      const active = merged
+        .filter((p: any) => new Date(p.created_at) >= today && p.user_id !== user?.id)
+        .reduce((acc: any[], p: any) => {
+          if (!acc.find((a) => a.id === p.user_id)) {
+            acc.push({ username: p.profiles.username, id: p.user_id })
+          }
+          return acc
+        }, [])
+      setActiveToday(active)
       setLoading(false)
     }
 
