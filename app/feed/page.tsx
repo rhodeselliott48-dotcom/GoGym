@@ -20,33 +20,58 @@ export default function FeedPage() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('workout_posts')
-        .select('*, profiles(*)')
+        .select(`
+          *,
+          profiles (
+            id,
+            username,
+            full_name,
+            avatar_url,
+            bio,
+            gym_location,
+            city,
+            favorite_split,
+            favorite_exercises,
+            created_at
+          )
+        `)
         .order('created_at', { ascending: false })
         .limit(30)
 
+      if (error) {
+        console.error('Feed error:', error)
+        setLoading(false)
+        return
+      }
+
       if (data) {
-        const postsWithCounts = await Promise.all((data as WorkoutPost[]).map(async post => {
-          const [{ count: likes }, { count: comments }, liked] = await Promise.all([
+        const withCounts = await Promise.all(data.map(async (post: any) => {
+          const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
             supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            user ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).single() : Promise.resolve({ data: null }),
+            user ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
           ])
-          return { ...post, likes_count: likes || 0, comments_count: comments || 0, user_has_liked: !!liked.data }
+          return {
+            ...post,
+            likes_count: likes || 0,
+            comments_count: comments || 0,
+            user_has_liked: !!likedRes.data
+          }
         }))
-        setPosts(postsWithCounts)
+        setPosts(withCounts as WorkoutPost[])
 
-        // Active today
-        const today = new Date(); today.setHours(0,0,0,0)
-        const active = postsWithCounts
-          .filter(p => new Date(p.created_at) >= today && p.user_id !== user?.id)
-          .reduce((acc, p) => {
-            if (!acc.find((a: any) => a.id === p.user_id)) {
+        const today = new Date()
+        today.setHours(0,0,0,0)
+        const active = withCounts
+          .filter((p: any) => new Date(p.created_at) >= today && p.user_id !== user?.id && p.profiles)
+          .reduce((acc: any[], p: any) => {
+            if (!acc.find((a) => a.id === p.user_id)) {
               acc.push({ username: p.profiles.username, id: p.user_id })
             }
             return acc
-          }, [] as {username: string, id: string}[])
+          }, [])
         setActiveToday(active)
       }
       setLoading(false)
@@ -56,7 +81,6 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-nav">
-      {/* Header */}
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
           <MissionModal />
@@ -71,7 +95,6 @@ export default function FeedPage() {
         </div>
       </header>
 
-      {/* Active Today Banner */}
       {activeToday.length > 0 && (
         <div className="mx-4 mt-4 bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
           <p className="text-brand text-xs font-bold uppercase tracking-widest mb-2">🔥 Active Today</p>
@@ -86,7 +109,6 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* Activity label */}
       <div className="px-4 pt-5 pb-2 flex items-center gap-2">
         <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
         <p className="text-light-gray/50 text-xs uppercase tracking-widest font-semibold">Activity Feed</p>
@@ -105,7 +127,9 @@ export default function FeedPage() {
             <p className="text-muted text-sm mt-2">Be the first to log your session</p>
           </div>
         ) : (
-          posts.map(post => <WorkoutCard key={post.id} post={post} currentUserId={currentUserId ?? undefined} />)
+          posts.map(post => (
+            <WorkoutCard key={post.id} post={post} currentUserId={currentUserId ?? undefined} />
+          ))
         )}
       </main>
       <BottomNav />
