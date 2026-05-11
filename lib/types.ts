@@ -7,6 +7,7 @@ export interface Exercise {
   name: string
   sets: number
   reps: string
+  weight: string
   is_pr: boolean
   description?: string
 }

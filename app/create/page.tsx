@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
-import { Camera, X, ArrowLeft, Plus, Trash2, Star, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import { Camera, X, ArrowLeft, Plus, Trash2, Star, Info } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -19,11 +19,10 @@ const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
 const SET_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20','25','30','AMRAP','Failure']
 
-function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', is_pr: false } }
+function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', weight: '', is_pr: false } }
 
 export default function CreatePage() {
   const [step, setStep] = useState(1)
-  // Step 1 - Session info
   const [title, setTitle] = useState('')
   const [workoutType, setWorkoutType] = useState<WorkoutType | ''>('')
   const [sessionType, setSessionType] = useState<SessionType>('Solo')
@@ -33,9 +32,7 @@ export default function CreatePage() {
   const [city, setCity] = useState('')
   const [mentions, setMentions] = useState('')
   const [groupName, setGroupName] = useState('')
-  // Step 2 - Exercises
   const [exercises, setExercises] = useState<Exercise[]>([emptyExercise()])
-  // Step 3 - Share
   const [caption, setCaption] = useState('')
   const [photos, setPhotos] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
@@ -109,7 +106,6 @@ export default function CreatePage() {
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3">
         <Link href="/feed" className="text-muted hover:text-white press"><ArrowLeft size={20} /></Link>
         <h2 className="font-display text-2xl tracking-wide">Log Workout</h2>
-        {/* Steps */}
         <div className="ml-auto flex items-center gap-1.5">
           {[1,2,3].map(s => (
             <button key={s} onClick={() => setStep(s)}
@@ -123,19 +119,17 @@ export default function CreatePage() {
 
       <div className="px-4 py-6 space-y-6">
 
-        {/* ── STEP 1: Session Info ── */}
+        {/* STEP 1 */}
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
 
-            {/* Title */}
             <div>
               <label className="field-label">Workout Title</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete 💪"
                 className="field-input" />
             </div>
 
-            {/* Workout Type */}
             <div>
               <label className="field-label">Workout Type *</label>
               <div className="grid grid-cols-4 gap-2">
@@ -149,7 +143,6 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Session Type */}
             <div>
               <label className="field-label">Session Type</label>
               <div className="space-y-2">
@@ -171,7 +164,6 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Mentions for Joint/Group */}
             {(sessionType === 'Joint' || sessionType === 'Group') && (
               <div className="space-y-3 bg-surface-2 rounded-2xl p-4 border border-border">
                 <label className="field-label">@ Mention Partners</label>
@@ -187,7 +179,6 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Mood */}
             <div>
               <label className="field-label">How are you feeling? *</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -201,7 +192,6 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Duration + Location */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Duration (mins)</label>
@@ -227,7 +217,7 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* ── STEP 2: Exercises ── */}
+        {/* STEP 2 */}
         {step === 2 && (
           <div className="space-y-4 animate-fade-up">
             <SectionLabel>Exercises</SectionLabel>
@@ -253,7 +243,6 @@ export default function CreatePage() {
                       )}
                     </div>
 
-                    {/* Exercise description */}
                     {info && (
                       <div className="flex items-start gap-2 bg-surface-3 rounded-xl px-3 py-2 border border-border">
                         <Info size={12} className="text-brand mt-0.5 flex-shrink-0" />
@@ -261,7 +250,8 @@ export default function CreatePage() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Sets, Reps, Weight */}
+                    <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="field-label">Sets</label>
                         <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))}
@@ -275,6 +265,16 @@ export default function CreatePage() {
                           className="field-input">
                           {REP_OPTIONS.map(r => <option key={r} value={r}>{r} reps</option>)}
                         </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Weight (lbs)</label>
+                        <input
+                          type="number"
+                          value={ex.weight}
+                          onChange={e => updateExercise(i, 'weight', e.target.value)}
+                          placeholder="135"
+                          className="field-input"
+                        />
                       </div>
                     </div>
 
@@ -308,7 +308,7 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* ── STEP 3: Share ── */}
+        {/* STEP 3 */}
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
@@ -321,7 +321,6 @@ export default function CreatePage() {
               <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
             </div>
 
-            {/* Photos */}
             <div>
               <label className="field-label">Photos ({photos.length}/5)</label>
               {previews.length > 0 && (
