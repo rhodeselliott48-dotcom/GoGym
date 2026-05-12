@@ -58,15 +58,7 @@ export default function LeaderboardPage() {
         })
       }
 
-      // Fetch posts from friends + self
-      const { data: postsData } = await supabase
-        .from('workout_posts')
-        .select('user_id, duration_minutes, exercises, created_at')
-        .in('user_id', friendIds)
-
-      if (!postsData) { setLoading(false); return }
-
-      // Fetch profiles
+      // Get profiles for all friends + self
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, username, full_name, avatar_url')
@@ -75,30 +67,58 @@ export default function LeaderboardPage() {
       const profilesMap: Record<string, any> = {}
       if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
-      // Count stats per user
+      // Fetch posts from friends + self
+      const { data: postsData } = await supabase
+        .from('workout_posts')
+        .select('user_id, duration_minutes, exercises, created_at, mentions')
+        .in('user_id', friendIds)
+
+      if (!postsData) { setLoading(false); return }
+
       const today = new Date()
       today.setHours(0,0,0,0)
+
+      // Count stats per user - including mentioned posts
       const counts: Record<string, any> = {}
 
-      for (const row of postsData as any[]) {
-        const p = profilesMap[row.user_id]
+      // Initialize all friends
+      for (const friendId of friendIds) {
+        const p = profilesMap[friendId]
         if (!p) continue
-        if (!counts[row.user_id]) {
-          counts[row.user_id] = {
-            user_id: row.user_id,
-            username: p.username,
-            full_name: p.full_name,
-            avatar_url: p.avatar_url,
-            workouts: 0,
-            duration: 0,
-            days: new Set(),
-            prs: 0,
+        counts[friendId] = {
+          user_id: friendId,
+          username: p.username,
+          full_name: p.full_name,
+          avatar_url: p.avatar_url,
+          workouts: 0,
+          duration: 0,
+          days: new Set(),
+          prs: 0,
+          countedPostIds: new Set(),
+        }
+      }
+
+      for (const row of postsData as any[]) {
+        // Count for the post owner
+        if (counts[row.user_id]) {
+          counts[row.user_id].workouts++
+          counts[row.user_id].duration += row.duration_minutes || 0
+          counts[row.user_id].days.add(new Date(row.created_at).toDateString())
+          counts[row.user_id].prs += (row.exercises || []).filter((e: any) => e.is_pr).length
+        }
+
+        // Count for mentioned users who are friends
+        if (row.mentions && row.mentions.length > 0) {
+          for (const username of row.mentions) {
+            const mentionedProfile = profilesData?.find((p: any) => p.username === username)
+            if (mentionedProfile && counts[mentionedProfile.id]) {
+              counts[mentionedProfile.id].workouts++
+              counts[mentionedProfile.id].duration += row.duration_minutes || 0
+              counts[mentionedProfile.id].days.add(new Date(row.created_at).toDateString())
+              counts[mentionedProfile.id].prs += (row.exercises || []).filter((e: any) => e.is_pr).length
+            }
           }
         }
-        counts[row.user_id].workouts++
-        counts[row.user_id].duration += row.duration_minutes || 0
-        counts[row.user_id].days.add(new Date(row.created_at).toDateString())
-        counts[row.user_id].prs += (row.exercises || []).filter((e: any) => e.is_pr).length
       }
 
       // Active today
@@ -169,7 +189,6 @@ export default function LeaderboardPage() {
         </div>
       </header>
 
-      {/* Active Today */}
       {activeToday.length > 0 && (
         <div className="mx-4 mt-4 bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
           <p className="text-brand text-xs font-bold uppercase tracking-widest mb-2">🔥 Active Today</p>
@@ -191,7 +210,6 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {/* Podium */}
       {!loading && sorted.length >= 3 && (
         <div className="px-4 pt-6 pb-2">
           <div className="flex items-end justify-center gap-3">
@@ -202,8 +220,7 @@ export default function LeaderboardPage() {
               const heights = ['h-28','h-20','h-16']
               return (
                 <Link key={entry.user_id} href={`/profile/${entry.username}`} className="flex flex-col items-center gap-2 press">
-                  <div className={`rounded-full bg-surface-3 border-2 overflow-hidden
-                    ${idx === 0 ? 'w-16 h-16' : 'w-12 h-12'}`}
+                  <div className={`rounded-full bg-surface-3 border-2 overflow-hidden ${idx === 0 ? 'w-16 h-16' : 'w-12 h-12'}`}
                     style={{ borderColor: idx === 0 ? '#fbbf24' : idx === 1 ? '#9ca3af' : '#f97316' }}>
                     {entry.avatar_url ? (
                       <img src={entry.avatar_url} alt="" className="object-cover w-full h-full" />
