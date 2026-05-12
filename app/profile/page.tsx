@@ -54,10 +54,10 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth'); return }
 
-      const [{ data: p }, { data: w }, { count: fc }] = await Promise.all([
+      const [{ data: p }, { count: fc }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
-        supabase.from('workout_posts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('friendships').select('*', { count: 'exact', head: true }).or(`user_id.eq.${user.id},friend_id.eq.${user.id}`).eq('status', 'accepted'),
+        supabase.from('friendships').select('*', { count: 'exact', head: true })
+          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`).eq('status', 'accepted'),
       ])
 
       if (p) {
@@ -69,10 +69,42 @@ export default function ProfilePage() {
         setFavSplit(p.favorite_split ?? '')
         setFavExercises(p.favorite_exercises?.length ? [...p.favorite_exercises, ...Array(3).fill('')].slice(0,3) : ['','',''])
 
-        if (w) {
-          const postsWithProfile = w.map((post: any) => ({ ...post, profiles: p }))
-          setPosts(postsWithProfile as WorkoutPost[])
-        }
+        // Fetch own posts
+        const { data: ownPosts } = await supabase
+          .from('workout_posts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+
+        // Fetch posts where user is mentioned
+        const { data: mentionedPosts } = await supabase
+          .from('workout_posts')
+          .select('*')
+          .contains('mentions', [p.username])
+          .order('created_at', { ascending: false })
+
+        // Merge and deduplicate
+        const allPosts = [...(ownPosts || []), ...(mentionedPosts || [])]
+        const seen = new Set()
+        const dedupedPosts = allPosts.filter((post: any) => {
+          if (seen.has(post.id)) return false
+          seen.add(post.id)
+          return true
+        }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+        // Get all profiles needed
+        const userIds = [...new Set(dedupedPosts.map((post: any) => post.user_id))]
+        const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds as string[])
+        const profilesMap: Record<string, any> = {}
+        if (profilesData) profilesData.forEach((prof: any) => { profilesMap[prof.id] = prof })
+        profilesMap[user.id] = p
+
+        const postsWithProfiles = dedupedPosts.map((post: any) => ({
+          ...post,
+          profiles: profilesMap[post.user_id] || p,
+        }))
+
+        setPosts(postsWithProfiles as WorkoutPost[])
       }
 
       setFriendCount(fc || 0)
