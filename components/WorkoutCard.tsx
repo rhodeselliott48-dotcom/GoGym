@@ -163,7 +163,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
           </Link>
         </div>
         <Link href={`/post/${post.id}`} className="flex items-center gap-1 text-muted text-xs press hover:text-white">
-          <span>View details</span>
+          <span className="text-brand">View details</span>
           <ChevronRight size={14} />
         </Link>
       </div>
