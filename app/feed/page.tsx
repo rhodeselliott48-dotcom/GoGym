@@ -13,6 +13,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [activeToday, setActiveToday] = useState<{username: string, id: string}[]>([])
+  const [hasFriends, setHasFriends] = useState(false)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -21,60 +22,66 @@ export default function FeedPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
+      if (!user) { setLoading(false); return }
 
-      // Fetch posts without join
-      const { data: postsData, error } = await supabase
+      // Get friends list
+      const { data: friendships } = await supabase
+        .from('friendships')
+        .select('user_id, friend_id')
+        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+        .eq('status', 'accepted')
+
+      // Build list of friend IDs including yourself
+      const friendIds: string[] = [user.id]
+      if (friendships && friendships.length > 0) {
+        setHasFriends(true)
+        friendships.forEach((f: any) => {
+          const otherId = f.user_id === user.id ? f.friend_id : f.user_id
+          if (!friendIds.includes(otherId)) friendIds.push(otherId)
+        })
+      }
+
+      // Fetch posts from friends + yourself only
+      const { data, error } = await supabase
         .from('workout_posts')
         .select('*')
+        .in('user_id', friendIds)
         .order('created_at', { ascending: false })
         .limit(30)
 
-      if (error) {
-        console.error('Feed error:', error.message)
-        setLoading(false)
-        return
-      }
+      if (error) { console.error('Feed error:', error.message); setLoading(false); return }
 
-      if (!postsData || postsData.length === 0) {
+      if (data && data.length > 0) {
+        const userIds = [...new Set(data.map((p: any) => p.user_id))]
+        const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds)
+
+        const profilesMap: Record<string, any> = {}
+        if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
+
+        const merged = data.map((post: any) => ({
+          ...post,
+          profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
+          likes_count: 0,
+          comments_count: 0,
+          user_has_liked: false,
+        }))
+
+        setPosts(merged as WorkoutPost[])
+
+        const today = new Date()
+        today.setHours(0,0,0,0)
+        const active = merged
+          .filter((p: any) => new Date(p.created_at) >= today && p.user_id !== user.id)
+          .reduce((acc: any[], p: any) => {
+            if (!acc.find((a) => a.id === p.user_id)) {
+              acc.push({ username: p.profiles.username, id: p.user_id })
+            }
+            return acc
+          }, [])
+        setActiveToday(active)
+      } else {
         setPosts([])
-        setLoading(false)
-        return
       }
-
-      // Fetch profiles separately
-      const userIds = [...new Set(postsData.map((p: any) => p.user_id))]
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', userIds)
-
-      const profilesMap: Record<string, any> = {}
-      if (profilesData) {
-        profilesData.forEach((p: any) => { profilesMap[p.id] = p })
-      }
-
-      // Merge posts with profiles
-      const merged = postsData.map((post: any) => ({
-        ...post,
-        profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
-        likes_count: 0,
-        comments_count: 0,
-        user_has_liked: false,
-      }))
-
-      setPosts(merged as WorkoutPost[])
-
-      const today = new Date()
-      today.setHours(0,0,0,0)
-      const active = merged
-        .filter((p: any) => new Date(p.created_at) >= today && p.user_id !== user?.id)
-        .reduce((acc: any[], p: any) => {
-          if (!acc.find((a) => a.id === p.user_id)) {
-            acc.push({ username: p.profiles.username, id: p.user_id })
-          }
-          return acc
-        }, [])
-      setActiveToday(active)
       setLoading(false)
     }
 
@@ -113,7 +120,7 @@ export default function FeedPage() {
 
       <div className="px-4 pt-5 pb-2 flex items-center gap-2">
         <div className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
-        <p className="text-light-gray/50 text-xs uppercase tracking-widest font-semibold">Activity Feed</p>
+        <p className="text-light-gray/50 text-xs uppercase tracking-widest font-semibold">Friends Feed</p>
         <span className="text-muted text-xs">· {posts.length} workouts</span>
       </div>
 
@@ -124,9 +131,17 @@ export default function FeedPage() {
           ))
         ) : posts.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-5xl mb-4">🏋️</p>
-            <p className="text-white font-display text-3xl">No workouts yet</p>
-            <p className="text-muted text-sm mt-2">Be the first to log your session</p>
+            <p className="text-5xl mb-4">👥</p>
+            <p className="text-white font-display text-3xl">No posts yet</p>
+            <p className="text-muted text-sm mt-2 mb-6">
+              {hasFriends ? 'Your friends haven\'t posted yet!' : 'Add friends to see their workouts here!'}
+            </p>
+            {!hasFriends && (
+              <Link href="/profile/friends"
+                className="bg-brand text-white font-display text-lg px-6 py-3 rounded-2xl press shadow-lg shadow-brand/20">
+                FIND FRIENDS
+              </Link>
+            )}
           </div>
         ) : (
           posts.map(post => (
