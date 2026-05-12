@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { WorkoutPost, Comment } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 import BodyMap from '@/components/BodyMap'
-import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users, CornerDownRight } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -19,17 +19,26 @@ function timeAgo(date: string) {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+interface CommentWithExtras extends Comment {
+  likes_count: number
+  user_has_liked: boolean
+  replies: CommentWithExtras[]
+  parent_id: string | null
+}
+
 export default function PostDetailPage() {
   const { id } = useParams() as { id: string }
   const [post, setPost] = useState<WorkoutPost | null>(null)
-  const [comments, setComments] = useState<Comment[]>([])
+  const [comments, setComments] = useState<CommentWithExtras[]>([])
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(0)
   const [newComment, setNewComment] = useState('')
+  const [replyingTo, setReplyingTo] = useState<{id: string, username: string} | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const commentInputRef = useRef<HTMLInputElement>(null)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -45,27 +54,71 @@ export default function PostDetailPage() {
         const { data: prof } = await supabase.from('profiles').select('*').eq('id', p.user_id).single()
         setPost({ ...p, profiles: prof } as WorkoutPost)
 
-        const [{ count: likes }, likedRes, { data: cmts }] = await Promise.all([
+        const [{ count: likes }, likedRes] = await Promise.all([
           supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', id),
           user ? supabase.from('post_likes').select('id').eq('post_id', id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
-          supabase.from('comments').select('*').eq('post_id', id).order('created_at'),
         ])
         setLikeCount(likes || 0)
         setLiked(!!likedRes.data)
 
-        if (cmts && cmts.length > 0) {
-          const commentUserIds = [...new Set(cmts.map((c: any) => c.user_id))]
-          const { data: commentProfiles } = await supabase.from('profiles').select('*').in('id', commentUserIds)
-          const profileMap: Record<string, any> = {}
-          if (commentProfiles) commentProfiles.forEach((p: any) => { profileMap[p.id] = p })
-          const cmtsWithProfiles = cmts.map((c: any) => ({ ...c, profiles: profileMap[c.user_id] || { username: 'unknown' } }))
-          setComments(cmtsWithProfiles as Comment[])
-        }
+        await loadComments(user?.id ?? null)
       }
       setLoading(false)
     }
     load()
   }, [id])
+
+  async function loadComments(userId: string | null) {
+    const supabase = supabaseRef.current
+
+    const { data: cmts } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('post_id', id)
+      .order('created_at')
+
+    if (!cmts || cmts.length === 0) { setComments([]); return }
+
+    const commentUserIds = [...new Set(cmts.map((c: any) => c.user_id))]
+    const { data: commentProfiles } = await supabase.from('profiles').select('*').in('id', commentUserIds)
+    const profileMap: Record<string, any> = {}
+    if (commentProfiles) commentProfiles.forEach((p: any) => { profileMap[p.id] = p })
+
+    // Get likes for all comments
+    const commentIds = cmts.map((c: any) => c.id)
+    const { data: allLikes } = await supabase
+      .from('comment_likes')
+      .select('comment_id, user_id')
+      .in('comment_id', commentIds)
+
+    const likesMap: Record<string, number> = {}
+    const userLikedMap: Record<string, boolean> = {}
+    if (allLikes) {
+      allLikes.forEach((l: any) => {
+        likesMap[l.comment_id] = (likesMap[l.comment_id] || 0) + 1
+        if (l.user_id === userId) userLikedMap[l.comment_id] = true
+      })
+    }
+
+    const cmtsWithExtras: CommentWithExtras[] = cmts.map((c: any) => ({
+      ...c,
+      profiles: profileMap[c.user_id] || { username: 'unknown', avatar_url: null },
+      likes_count: likesMap[c.id] || 0,
+      user_has_liked: userLikedMap[c.id] || false,
+      replies: [],
+      parent_id: c.parent_id || null,
+    }))
+
+    // Nest replies under parent comments
+    const topLevel = cmtsWithExtras.filter(c => !c.parent_id)
+    const replies = cmtsWithExtras.filter(c => c.parent_id)
+    replies.forEach(reply => {
+      const parent = topLevel.find(c => c.id === reply.parent_id)
+      if (parent) parent.replies.push(reply)
+    })
+
+    setComments(topLevel)
+  }
 
   async function toggleLike() {
     const supabase = supabaseRef.current
@@ -80,6 +133,17 @@ export default function PostDetailPage() {
     setLiked(!liked)
   }
 
+  async function toggleCommentLike(commentId: string, currentlyLiked: boolean) {
+    const supabase = supabaseRef.current
+    if (!currentUserId) return
+    if (currentlyLiked) {
+      await supabase.from('comment_likes').delete().eq('comment_id', commentId).eq('user_id', currentUserId)
+    } else {
+      await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: currentUserId })
+    }
+    await loadComments(currentUserId)
+  }
+
   async function handleDelete() {
     if (!confirm('Delete this post? This cannot be undone.')) return
     setDeleting(true)
@@ -90,14 +154,23 @@ export default function PostDetailPage() {
   async function submitComment() {
     const supabase = supabaseRef.current
     if (!newComment.trim() || !currentUserId) return
-    const { data } = await supabase.from('comments')
-      .insert({ post_id: id, user_id: currentUserId, content: newComment.trim() })
-      .select('*').single()
-    if (data) {
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', currentUserId).single()
-      setComments(prev => [...prev, { ...data, profiles: prof } as Comment])
-    }
+
+    await supabase.from('comments').insert({
+      post_id: id,
+      user_id: currentUserId,
+      content: newComment.trim(),
+      parent_id: replyingTo?.id || null,
+    })
+
     setNewComment('')
+    setReplyingTo(null)
+    await loadComments(currentUserId)
+  }
+
+  function startReply(commentId: string, username: string) {
+    setReplyingTo({ id: commentId, username })
+    setNewComment(`@${username} `)
+    commentInputRef.current?.focus()
   }
 
   const allMuscles = post?.exercises?.flatMap(e => findExercise(e.name)?.muscles || []) || []
@@ -105,6 +178,7 @@ export default function PostDetailPage() {
   const totalSets = post?.exercises?.reduce((s, e) => s + e.sets, 0) || 0
   const prExercises = post?.exercises?.filter(e => e.is_pr) || []
   const hasMentions = post?.mentions && post.mentions.length > 0
+  const totalComments = comments.reduce((s, c) => s + 1 + c.replies.length, 0)
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
@@ -115,6 +189,49 @@ export default function PostDetailPage() {
     <div className="min-h-screen bg-[#0f0f0f] flex flex-col items-center justify-center gap-4">
       <p className="text-white font-display text-2xl">Post not found</p>
       <Link href="/feed" className="text-brand text-sm">Back to feed</Link>
+    </div>
+  )
+
+  const CommentItem = ({ comment, isReply = false }: { comment: CommentWithExtras, isReply?: boolean }) => (
+    <div className={`flex gap-3 ${isReply ? 'ml-10 mt-2' : ''}`}>
+      <Link href={`/profile/${comment.profiles.username}`}>
+        <div className="w-8 h-8 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
+          {comment.profiles.avatar_url ? (
+            <img src={comment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-brand text-xs font-bold">
+              {comment.profiles.username[0].toUpperCase()}
+            </div>
+          )}
+        </div>
+      </Link>
+      <div className="flex-1">
+        <div className="bg-surface-2 rounded-2xl px-3 py-2 border border-border">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-brand text-xs font-semibold">@{comment.profiles.username}</span>
+            <span className="text-muted text-xs">{timeAgo(comment.created_at)}</span>
+          </div>
+          <p className="text-white/80 text-sm">{comment.content}</p>
+        </div>
+        <div className="flex items-center gap-4 mt-1 px-1">
+          <button onClick={() => toggleCommentLike(comment.id, comment.user_has_liked)}
+            className="flex items-center gap-1 press">
+            <Heart size={12} className={comment.user_has_liked ? 'fill-brand text-brand' : 'text-muted'} strokeWidth={comment.user_has_liked ? 0 : 1.8} />
+            {comment.likes_count > 0 && <span className={`text-xs font-semibold ${comment.user_has_liked ? 'text-brand' : 'text-muted'}`}>{comment.likes_count}</span>}
+          </button>
+          {!isReply && (
+            <button onClick={() => startReply(comment.id, comment.profiles.username)}
+              className="flex items-center gap-1 text-muted press hover:text-white">
+              <CornerDownRight size={12} />
+              <span className="text-xs">Reply</span>
+            </button>
+          )}
+        </div>
+        {/* Replies */}
+        {comment.replies.map(reply => (
+          <CommentItem key={reply.id} comment={reply} isReply />
+        ))}
+      </div>
     </div>
   )
 
@@ -285,41 +402,36 @@ export default function PostDetailPage() {
         {/* Comments */}
         <div>
           <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">
-            Comments {comments.length > 0 && `(${comments.length})`}
+            Comments {totalComments > 0 && `(${totalComments})`}
           </h3>
           {comments.length === 0 && (
             <p className="text-muted text-sm text-center py-4">No comments yet. Be the first!</p>
           )}
-          <div className="space-y-3 mb-4">
-            {comments.map(c => (
-              <div key={c.id} className="flex gap-3">
-                <Link href={`/profile/${c.profiles.username}`}>
-                  <div className="w-8 h-8 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
-                    {c.profiles.avatar_url ? (
-                      <img src={c.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-brand text-xs font-bold">
-                        {c.profiles.username[0].toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                </Link>
-                <div className="flex-1 bg-surface-2 rounded-2xl px-3 py-2 border border-border">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-brand text-xs font-semibold">@{c.profiles.username}</span>
-                    <span className="text-muted text-xs">{timeAgo(c.created_at)}</span>
-                  </div>
-                  <p className="text-white/80 text-sm">{c.content}</p>
-                </div>
-              </div>
-            ))}
+          <div className="space-y-4 mb-4">
+            {comments.map(c => <CommentItem key={c.id} comment={c} />)}
           </div>
 
+          {/* Reply indicator */}
+          {replyingTo && (
+            <div className="flex items-center gap-2 bg-brand/10 border border-brand/20 rounded-xl px-3 py-2 mb-2">
+              <CornerDownRight size={14} className="text-brand" />
+              <span className="text-brand text-xs flex-1">Replying to @{replyingTo.username}</span>
+              <button onClick={() => { setReplyingTo(null); setNewComment('') }} className="text-muted press">
+                ✕
+              </button>
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <input value={newComment} onChange={e => setNewComment(e.target.value)}
+            <input
+              ref={commentInputRef}
+              value={newComment}
+              onChange={e => setNewComment(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submitComment()}
-              placeholder="Add a comment..." maxLength={200}
-              className="flex-1 bg-surface-2 border border-border rounded-2xl px-4 py-3 text-white text-sm placeholder-muted" />
+              placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
+              maxLength={200}
+              className="flex-1 bg-surface-2 border border-border rounded-2xl px-4 py-3 text-white text-sm placeholder-muted"
+            />
             <button onClick={submitComment} disabled={!newComment.trim()}
               className="bg-brand text-white rounded-2xl px-4 press disabled:opacity-40">
               <Send size={18} />
