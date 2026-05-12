@@ -33,6 +33,13 @@ export default function FeedPage() {
         .eq('status', 'pending')
       setPendingCount(pending || 0)
 
+      // Get current user's profile for username
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single()
+
       // Get friends list
       const { data: friendships } = await supabase
         .from('friendships')
@@ -49,31 +56,44 @@ export default function FeedPage() {
         })
       }
 
-      if (friendIds.length === 0) {
+      if (friendIds.length === 0 && !myProfile) {
         setPosts([])
         setLoading(false)
         return
       }
 
-      // Fetch posts from friends only
-      const { data, error } = await supabase
+      // Fetch posts from friends
+      const { data: friendPosts } = friendIds.length > 0 ? await supabase
         .from('workout_posts')
         .select('*')
         .in('user_id', friendIds)
         .order('created_at', { ascending: false })
-        .limit(30)
+        .limit(30) : { data: [] }
 
-      if (error) { console.error('Feed error:', error.message); setLoading(false); return }
+      // Fetch posts where current user is mentioned
+      const { data: mentionedPosts } = myProfile ? await supabase
+        .from('workout_posts')
+        .select('*')
+        .contains('mentions', [myProfile.username])
+        .order('created_at', { ascending: false })
+        .limit(30) : { data: [] }
 
-      if (data && data.length > 0) {
-        // Fetch profiles
-        const userIds = [...new Set(data.map((p: any) => p.user_id))]
+      // Merge and deduplicate
+      const allPosts = [...(friendPosts || []), ...(mentionedPosts || [])]
+      const seen = new Set()
+      const dedupedPosts = allPosts.filter((p: any) => {
+        if (seen.has(p.id)) return false
+        seen.add(p.id)
+        return true
+      }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+      if (dedupedPosts.length > 0) {
+        const userIds = [...new Set(dedupedPosts.map((p: any) => p.user_id))]
         const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds)
         const profilesMap: Record<string, any> = {}
         if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
-        // Fetch likes and comments for each post
-        const withCounts = await Promise.all(data.map(async (post: any) => {
+        const withCounts = await Promise.all(dedupedPosts.map(async (post: any) => {
           const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
             supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
