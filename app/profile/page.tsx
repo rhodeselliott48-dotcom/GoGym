@@ -69,19 +69,11 @@ export default function ProfilePage() {
         setFavSplit(p.favorite_split ?? '')
         setFavExercises(p.favorite_exercises?.length ? [...p.favorite_exercises, ...Array(3).fill('')].slice(0,3) : ['','',''])
 
-        // Fetch own posts
-        const { data: ownPosts } = await supabase
-          .from('workout_posts')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-
-        // Fetch posts where user is mentioned
-        const { data: mentionedPosts } = await supabase
-          .from('workout_posts')
-          .select('*')
-          .contains('mentions', [p.username])
-          .order('created_at', { ascending: false })
+        // Fetch own posts + mentioned posts
+        const [{ data: ownPosts }, { data: mentionedPosts }] = await Promise.all([
+          supabase.from('workout_posts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+          supabase.from('workout_posts').select('*').contains('mentions', [p.username]).order('created_at', { ascending: false }),
+        ])
 
         // Merge and deduplicate
         const allPosts = [...(ownPosts || []), ...(mentionedPosts || [])]
@@ -99,12 +91,23 @@ export default function ProfilePage() {
         if (profilesData) profilesData.forEach((prof: any) => { profilesMap[prof.id] = prof })
         profilesMap[user.id] = p
 
-        const postsWithProfiles = dedupedPosts.map((post: any) => ({
-          ...post,
-          profiles: profilesMap[post.user_id] || p,
+        // Fetch likes and comments for each post
+        const postsWithCounts = await Promise.all(dedupedPosts.map(async (post: any) => {
+          const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
+            supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle(),
+          ])
+          return {
+            ...post,
+            profiles: profilesMap[post.user_id] || p,
+            likes_count: likes || 0,
+            comments_count: comments || 0,
+            user_has_liked: !!likedRes.data,
+          }
         }))
 
-        setPosts(postsWithProfiles as WorkoutPost[])
+        setPosts(postsWithCounts as WorkoutPost[])
       }
 
       setFriendCount(fc || 0)
@@ -180,7 +183,7 @@ export default function ProfilePage() {
   }
 
   const badges = getBadges(posts, friendCount)
-  const totalPRs = posts.reduce((s, p) => s + (p.exercises?.filter(e => e.is_pr).length || 0), 0)
+  const totalPRs = posts.filter(p => p.user_id === profile?.id).reduce((s, p) => s + (p.exercises?.filter(e => e.is_pr).length || 0), 0)
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
@@ -341,7 +344,7 @@ export default function ProfilePage() {
             <p className="text-muted text-sm">No workouts yet. Get after it!</p>
           </div>
         ) : (
-          posts.map(post => <WorkoutCard key={post.id} post={post} />)
+          posts.map(post => <WorkoutCard key={post.id} post={post} currentUserId={profile?.id} />)
         )}
       </div>
       <BottomNav />
