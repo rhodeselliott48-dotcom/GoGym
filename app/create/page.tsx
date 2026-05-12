@@ -12,8 +12,8 @@ const WORKOUT_TYPES: WorkoutType[] = ['Push', 'Pull', 'Legs', 'Full Body', 'Card
 const MOODS: Mood[] = ['🔥 On Fire', '💪 Strong', '😤 Grind', '😴 Tired', '😊 Good']
 const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
   { value: 'Solo',  label: '🧍 Solo',         desc: 'Just you grinding' },
-  { value: 'Joint', label: '👥 Joint Session', desc: 'With a workout partner' },
-  { value: 'Group', label: '🏟️ Group Session', desc: 'Squad workout' },
+  { value: 'Joint', label: '👥 Joint Session', desc: 'With 1 workout partner' },
+  { value: 'Group', label: '🏟️ Group Session', desc: 'Squad workout (2+ people)' },
   { value: 'Live',  label: '📡 Live Session',  desc: 'Coming soon' },
 ]
 const SET_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
@@ -30,7 +30,8 @@ export default function CreatePage() {
   const [duration, setDuration] = useState('')
   const [gymLocation, setGymLocation] = useState('')
   const [city, setCity] = useState('')
-  const [mentions, setMentions] = useState('')
+  const [jointPartner, setJointPartner] = useState('')
+  const [groupMembers, setGroupMembers] = useState('')
   const [groupName, setGroupName] = useState('')
   const [exercises, setExercises] = useState<Exercise[]>([emptyExercise()])
   const [caption, setCaption] = useState('')
@@ -63,6 +64,13 @@ export default function CreatePage() {
 
   async function handleSubmit() {
     if (!workoutType || !mood) { setError('Please complete all required fields'); return }
+
+    // Validate joint session has exactly 1 partner
+    if (sessionType === 'Joint' && !jointPartner.trim()) {
+      setError('Joint session requires 1 partner username')
+      return
+    }
+
     setLoading(true); setError('')
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -79,7 +87,13 @@ export default function CreatePage() {
       }
     }
 
-    const mentionList = mentions.split(',').map(m => m.trim().replace('@', '')).filter(Boolean)
+    // Build mentions list
+    let mentionList: string[] = []
+    if (sessionType === 'Joint' && jointPartner.trim()) {
+      mentionList = [jointPartner.trim().replace('@', '')]
+    } else if (sessionType === 'Group' && groupMembers.trim()) {
+      mentionList = groupMembers.split(',').map(m => m.trim().replace('@', '')).filter(Boolean)
+    }
 
     const { error: postError } = await supabase.from('workout_posts').insert({
       user_id: user.id,
@@ -94,11 +108,10 @@ export default function CreatePage() {
       gym_location: gymLocation,
       city,
       mentions: mentionList,
-      group_name: groupName || null,
+      group_name: sessionType === 'Group' ? (groupName || null) : null,
     })
 
     if (postError) { setError('Post failed: ' + postError.message); setLoading(false); return }
-    	console.error('Post error:', postError)
     router.push('/feed')
   }
 
@@ -165,18 +178,42 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {(sessionType === 'Joint' || sessionType === 'Group') && (
-              <div className="space-y-3 bg-surface-2 rounded-2xl p-4 border border-border">
-                <label className="field-label">@ Mention Partners</label>
-                <input value={mentions} onChange={e => setMentions(e.target.value)}
-                  placeholder="@username1, @username2" className="field-input" />
-                {sessionType === 'Group' && (
-                  <>
-                    <label className="field-label mt-2">Group Name</label>
-                    <input value={groupName} onChange={e => setGroupName(e.target.value)}
-                      placeholder="e.g. The Wolfpack" className="field-input" />
-                  </>
-                )}
+            {/* Joint - exactly 1 partner */}
+            {sessionType === 'Joint' && (
+              <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-2">
+                <label className="field-label">Partner Username (1 only)</label>
+                <input
+                  value={jointPartner}
+                  onChange={e => setJointPartner(e.target.value.replace('@', ''))}
+                  placeholder="@username"
+                  className="field-input"
+                />
+                <p className="text-muted text-xs">Joint sessions are limited to 1 workout partner</p>
+              </div>
+            )}
+
+            {/* Group - multiple members */}
+            {sessionType === 'Group' && (
+              <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-3">
+                <div>
+                  <label className="field-label">Group Members (comma separated)</label>
+                  <input
+                    value={groupMembers}
+                    onChange={e => setGroupMembers(e.target.value)}
+                    placeholder="@username1, @username2, @username3"
+                    className="field-input"
+                  />
+                  <p className="text-muted text-xs mt-1">Tag everyone in your group session</p>
+                </div>
+                <div>
+                  <label className="field-label">Group Name (optional)</label>
+                  <input
+                    value={groupName}
+                    onChange={e => setGroupName(e.target.value)}
+                    placeholder="e.g. The Wolfpack"
+                    className="field-input"
+                  />
+                </div>
               </div>
             )}
 
@@ -251,7 +288,6 @@ export default function CreatePage() {
                       </div>
                     )}
 
-                    {/* Sets, Reps, Weight */}
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="field-label">Sets</label>
@@ -269,13 +305,9 @@ export default function CreatePage() {
                       </div>
                       <div>
                         <label className="field-label">Weight (lbs)</label>
-                        <input
-                          type="number"
-                          value={ex.weight}
+                        <input type="number" value={ex.weight}
                           onChange={e => updateExercise(i, 'weight', e.target.value)}
-                          placeholder="135"
-                          className="field-input"
-                        />
+                          placeholder="135" className="field-input" />
                       </div>
                     </div>
 
@@ -328,7 +360,6 @@ export default function CreatePage() {
                 <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
                   {previews.map((p, i) => (
                     <div key={i} className="relative flex-shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p} alt="" className="w-24 h-24 rounded-xl object-cover" />
                       <button onClick={() => removePhoto(i)}
                         className="absolute -top-1 -right-1 bg-black rounded-full p-0.5 press">

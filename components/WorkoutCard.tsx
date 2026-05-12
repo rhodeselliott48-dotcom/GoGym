@@ -3,7 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import { WorkoutPost } from '@/lib/types'
-import { Heart, MessageCircle, Clock, MapPin, Dumbbell, ChevronRight, Star } from 'lucide-react'
+import { Heart, MessageCircle, Clock, MapPin, Dumbbell, ChevronRight, Star, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
 function timeAgo(date: string) {
@@ -34,6 +34,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
   const colorClass = typeColors[post.workout_type] || typeColors['Other']
   const totalSets = post.exercises?.reduce((sum, e) => sum + (e.sets || 0), 0) || 0
   const hasPR = post.exercises?.some(e => e.is_pr)
+  const hasMentions = post.mentions && post.mentions.length > 0
 
   async function toggleLike() {
     if (!currentUserId) return
@@ -54,7 +55,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         <Link href={`/profile/${post.profiles.username}`}>
           <div className="w-10 h-10 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
             {post.profiles.avatar_url ? (
-              <Image src={post.profiles.avatar_url} alt={post.profiles.username} width={40} height={40} className="object-cover" />
+              <img src={post.profiles.avatar_url} alt={post.profiles.username} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-brand font-display text-lg">
                 {post.profiles.username[0].toUpperCase()}
@@ -97,9 +98,27 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         </span>
         <span className="text-xs bg-surface-3 text-white/60 px-2.5 py-1 rounded-full border border-border">{post.mood}</span>
         {post.session_type && post.session_type !== 'Solo' && (
-          <span className="text-xs bg-brand/10 text-brand px-2.5 py-1 rounded-full border border-brand/20">{post.session_type}</span>
+          <span className="text-xs bg-brand/10 text-brand px-2.5 py-1 rounded-full border border-brand/20 flex items-center gap-1">
+            <Users size={10} />{post.session_type}
+          </span>
         )}
       </div>
+
+      {/* Mentions */}
+      {hasMentions && (
+        <div className="px-4 pb-3 flex items-center gap-1.5 flex-wrap">
+          <span className="text-muted text-xs">with</span>
+          {post.mentions.map((username, i) => (
+            <Link key={i} href={`/profile/${username}`}
+              className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-full">
+              @{username}
+            </Link>
+          ))}
+          {post.group_name && (
+            <span className="text-xs text-white/50 ml-1">· {post.group_name}</span>
+          )}
+        </div>
+      )}
 
       {/* Stats bar */}
       {(post.exercises?.length > 0 || post.duration_minutes) && (
@@ -133,13 +152,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         <div className="flex gap-1 px-4 mb-3 overflow-x-auto scrollbar-none">
           {post.photo_urls.slice(0, 5).map((url, i) => (
             <div key={i} className="flex-shrink-0 relative">
-              <Image src={url} alt={`photo ${i+1}`} width={120} height={90}
-                className="rounded-xl object-cover h-[90px] w-[120px]" />
-              {i === 4 && post.photo_urls.length > 5 && (
-                <div className="absolute inset-0 bg-black/60 rounded-xl flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">+{post.photo_urls.length - 5}</span>
-                </div>
-              )}
+              <img src={url} alt={`photo ${i+1}`} className="rounded-xl object-cover h-[90px] w-[120px]" />
             </div>
           ))}
         </div>
@@ -162,9 +175,9 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
             <span className="text-sm font-semibold">{post.comments_count || 0}</span>
           </Link>
         </div>
-        <Link href={`/post/${post.id}`} className="flex items-center gap-1 text-muted text-xs press hover:text-white">
-          <span className="text-brand">View details</span>
-          <ChevronRight size={14} />
+        <Link href={`/post/${post.id}`} className="flex items-center gap-1 press">
+          <span className="text-brand text-xs font-semibold">View details</span>
+          <ChevronRight size={14} className="text-brand" />
         </Link>
       </div>
     </article>
