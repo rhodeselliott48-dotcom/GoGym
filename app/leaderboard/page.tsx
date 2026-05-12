@@ -29,10 +29,12 @@ export default function LeaderboardPage() {
   const [board, setBoard] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('workouts')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [activeToday, setActiveToday] = useState<{username: string, id: string}[]>([])
   const [reactionSent, setReactionSent] = useState<Record<string, string>>({})
+  const [reactionLoading, setReactionLoading] = useState<string | null>(null)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -43,7 +45,9 @@ export default function LeaderboardPage() {
       setCurrentUserId(user?.id ?? null)
       if (!user) { setLoading(false); return }
 
-      // Get friends + self
+      const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', user.id).single()
+      setCurrentUsername(myProfile?.username ?? null)
+
       const { data: friendships } = await supabase
         .from('friendships')
         .select('user_id, friend_id')
@@ -58,7 +62,6 @@ export default function LeaderboardPage() {
         })
       }
 
-      // Get profiles for all friends + self
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, username, full_name, avatar_url')
@@ -67,7 +70,6 @@ export default function LeaderboardPage() {
       const profilesMap: Record<string, any> = {}
       if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
-      // Fetch posts from friends + self
       const { data: postsData } = await supabase
         .from('workout_posts')
         .select('user_id, duration_minutes, exercises, created_at, mentions')
@@ -78,10 +80,7 @@ export default function LeaderboardPage() {
       const today = new Date()
       today.setHours(0,0,0,0)
 
-      // Count stats per user - including mentioned posts
       const counts: Record<string, any> = {}
-
-      // Initialize all friends
       for (const friendId of friendIds) {
         const p = profilesMap[friendId]
         if (!p) continue
@@ -94,20 +93,16 @@ export default function LeaderboardPage() {
           duration: 0,
           days: new Set(),
           prs: 0,
-          countedPostIds: new Set(),
         }
       }
 
       for (const row of postsData as any[]) {
-        // Count for the post owner
         if (counts[row.user_id]) {
           counts[row.user_id].workouts++
           counts[row.user_id].duration += row.duration_minutes || 0
           counts[row.user_id].days.add(new Date(row.created_at).toDateString())
           counts[row.user_id].prs += (row.exercises || []).filter((e: any) => e.is_pr).length
         }
-
-        // Count for mentioned users who are friends
         if (row.mentions && row.mentions.length > 0) {
           for (const username of row.mentions) {
             const mentionedProfile = profilesData?.find((p: any) => p.username === username)
@@ -121,7 +116,6 @@ export default function LeaderboardPage() {
         }
       }
 
-      // Active today
       const todayActive = (postsData as any[])
         .filter(r => new Date(r.created_at) >= today && r.user_id !== user.id)
         .reduce((acc: any[], r: any) => {
@@ -151,6 +145,23 @@ export default function LeaderboardPage() {
     }
     load()
   }, [])
+
+  async function sendReaction(targetUser: {id: string, username: string}, emoji: string) {
+    if (!currentUserId || !currentUsername) return
+    setReactionLoading(targetUser.id)
+
+    const supabase = supabaseRef.current
+    await supabase.from('notifications').insert({
+      user_id: targetUser.id,
+      sender_id: currentUserId,
+      type: 'reaction',
+      content: `@${currentUsername} sent you a ${emoji} reaction!`,
+      read: false,
+    })
+
+    setReactionSent(prev => ({ ...prev, [targetUser.id]: emoji }))
+    setReactionLoading(null)
+  }
 
   const sorted = [...board].map(e => {
     const value = sortMode === 'workouts' ? e._workouts : sortMode === 'duration' ? e._duration : sortMode === 'days' ? e._days : e._prs
@@ -198,11 +209,17 @@ export default function LeaderboardPage() {
                 <Link href={`/profile/${u.username}`} className="text-white text-sm font-semibold">@{u.username}</Link>
                 <div className="flex gap-1">
                   {REACTIONS.map(r => (
-                    <button key={r} onClick={() => setReactionSent(prev => ({ ...prev, [u.id]: r }))}
-                      className={`text-base press transition-all ${reactionSent[u.id] === r ? 'scale-125' : 'opacity-60 hover:opacity-100'}`}>
+                    <button key={r}
+                      disabled={!!reactionSent[u.id] || reactionLoading === u.id}
+                      onClick={() => sendReaction(u, r)}
+                      className={`text-base press transition-all disabled:cursor-default
+                        ${reactionSent[u.id] === r ? 'scale-125' : reactionSent[u.id] ? 'opacity-30' : 'opacity-60 hover:opacity-100'}`}>
                       {r}
                     </button>
                   ))}
+                  {reactionSent[u.id] && (
+                    <span className="text-brand text-xs ml-1 self-center">sent!</span>
+                  )}
                 </div>
               </div>
             ))}
