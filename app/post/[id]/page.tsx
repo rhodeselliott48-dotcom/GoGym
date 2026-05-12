@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { WorkoutPost, Comment } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 import BodyMap from '@/components/BodyMap'
-import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2 } from 'lucide-react'
+import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -104,6 +104,7 @@ export default function PostDetailPage() {
   const uniqueMuscles = [...new Set(allMuscles)]
   const totalSets = post?.exercises?.reduce((s, e) => s + e.sets, 0) || 0
   const prExercises = post?.exercises?.filter(e => e.is_pr) || []
+  const hasMentions = post?.mentions && post.mentions.length > 0
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
@@ -140,6 +141,7 @@ export default function PostDetailPage() {
       </header>
 
       <div className="px-4 py-5 space-y-5">
+        {/* User info */}
         <div className="flex items-center gap-3">
           <Link href={`/profile/${post.profiles?.username}`}>
             <div className="w-12 h-12 rounded-full bg-surface-3 border-2 border-brand/30 overflow-hidden">
@@ -164,16 +166,36 @@ export default function PostDetailPage() {
           </div>
         </div>
 
+        {/* Tags */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
             <Dumbbell size={11} />{post.workout_type}
           </span>
           <span className="text-xs bg-surface-2 text-white/60 border border-border px-3 py-1 rounded-full">{post.mood}</span>
           {post.session_type !== 'Solo' && (
-            <span className="text-xs bg-surface-2 text-white/60 border border-border px-3 py-1 rounded-full">{post.session_type}</span>
+            <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
+              <Users size={10} />{post.session_type}
+            </span>
           )}
         </div>
 
+        {/* Mentions */}
+        {hasMentions && (
+          <div className="flex items-center gap-1.5 flex-wrap bg-surface-2 rounded-xl px-4 py-3 border border-border">
+            <span className="text-muted text-xs font-semibold uppercase tracking-wide">With</span>
+            {post.mentions.map((username: string, i: number) => (
+              <Link key={i} href={`/profile/${username}`}
+                className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-full">
+                @{username}
+              </Link>
+            ))}
+            {post.group_name && (
+              <span className="text-xs text-white/50 ml-1">· {post.group_name}</span>
+            )}
+          </div>
+        )}
+
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Exercises', value: post.exercises?.length || 0 },
@@ -187,6 +209,7 @@ export default function PostDetailPage() {
           ))}
         </div>
 
+        {/* PRs */}
         {prExercises.length > 0 && (
           <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
             <p className="text-yellow-400 font-bold text-sm flex items-center gap-2 mb-2">
@@ -198,10 +221,12 @@ export default function PostDetailPage() {
           </div>
         )}
 
+        {/* Caption */}
         {post.caption && (
           <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>
         )}
 
+        {/* Exercise list */}
         {post.exercises?.length > 0 && (
           <div>
             <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Exercises</h3>
@@ -233,6 +258,7 @@ export default function PostDetailPage() {
           </div>
         )}
 
+        {/* Body Map */}
         {uniqueMuscles.length > 0 && (
           <div className="bg-surface-2 rounded-2xl border border-border p-4">
             <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-1">Muscles Targeted</h3>
@@ -241,6 +267,7 @@ export default function PostDetailPage() {
           </div>
         )}
 
+        {/* Photos */}
         {post.photo_urls?.length > 0 && (
           <div>
             <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Session Photos</h3>
@@ -255,6 +282,7 @@ export default function PostDetailPage() {
           </div>
         )}
 
+        {/* Comments */}
         <div>
           <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">
             Comments {comments.length > 0 && `(${comments.length})`}
