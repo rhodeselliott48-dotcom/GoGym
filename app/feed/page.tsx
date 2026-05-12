@@ -14,6 +14,7 @@ export default function FeedPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [activeToday, setActiveToday] = useState<{username: string, id: string}[]>([])
   const [hasFriends, setHasFriends] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -24,6 +25,14 @@ export default function FeedPage() {
       setCurrentUserId(user?.id ?? null)
       if (!user) { setLoading(false); return }
 
+      // Check pending friend requests
+      const { count: pending } = await supabase
+        .from('friendships')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', user.id)
+        .eq('status', 'pending')
+      setPendingCount(pending || 0)
+
       // Get friends list
       const { data: friendships } = await supabase
         .from('friendships')
@@ -31,7 +40,7 @@ export default function FeedPage() {
         .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
         .eq('status', 'accepted')
 
-      // Build list of friend IDs including yourself
+      // Build list of friend IDs (NOT including yourself)
       const friendIds: string[] = []
       if (friendships && friendships.length > 0) {
         setHasFriends(true)
@@ -41,7 +50,13 @@ export default function FeedPage() {
         })
       }
 
-      // Fetch posts from friends + yourself only
+      if (friendIds.length === 0) {
+        setPosts([])
+        setLoading(false)
+        return
+      }
+
+      // Fetch posts from friends only
       const { data, error } = await supabase
         .from('workout_posts')
         .select('*')
@@ -97,9 +112,14 @@ export default function FeedPage() {
             <Link href="/leaderboard" className="text-muted hover:text-white press">
               <Users size={20} />
             </Link>
-            <button className="text-muted hover:text-white press relative">
+            <Link href="/profile/friends" className="text-muted hover:text-white press relative">
               <Bell size={20} />
-            </button>
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand rounded-full text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </Link>
           </div>
         </div>
       </header>
@@ -134,7 +154,7 @@ export default function FeedPage() {
             <p className="text-5xl mb-4">👥</p>
             <p className="text-white font-display text-3xl">No posts yet</p>
             <p className="text-muted text-sm mt-2 mb-6">
-              {hasFriends ? 'Your friends haven\'t posted yet!' : 'Add friends to see their workouts here!'}
+              {hasFriends ? "Your friends haven't posted yet!" : 'Add friends to see their workouts here!'}
             </p>
             {!hasFriends && (
               <Link href="/profile/friends"
