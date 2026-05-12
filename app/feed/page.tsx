@@ -139,7 +139,7 @@ export default function FeedPage() {
             <Link href="/leaderboard" className="text-muted hover:text-white press">
               <Users size={20} />
             </Link>
-            <Link href="/profile/friends" className="text-muted hover:text-white press relative">
+            <Link href="/notifications" className="text-muted hover:text-white press relative">
               <Bell size={20} />
               {pendingCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand rounded-full text-white text-[10px] font-bold flex items-center justify-center">
