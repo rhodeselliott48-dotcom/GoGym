@@ -8,7 +8,7 @@ export default function MissionModal() {
   return (
     <>
       <button onClick={() => setOpen(true)} className="press text-left">
-        <h1 className="font-display text-4xl tracking-wide text-white leading-none">GoGym</h1>
+        <h1 className="font-display text-4xl tracking-wide text-white leading-none">Go<span className="text-brand">Gym</span></h1>
         <p className="text-light-gray/50 text-xs tracking-widest uppercase font-medium">Lift Together</p>
       </button>
 
