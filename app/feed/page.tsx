@@ -32,7 +32,7 @@ export default function FeedPage() {
         .eq('status', 'accepted')
 
       // Build list of friend IDs including yourself
-      const friendIds: string[] = [user.id]
+      const friendIds: string[] = []
       if (friendships && friendships.length > 0) {
         setHasFriends(true)
         friendships.forEach((f: any) => {
