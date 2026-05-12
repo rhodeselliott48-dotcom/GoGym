@@ -40,7 +40,6 @@ export default function FeedPage() {
         .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
         .eq('status', 'accepted')
 
-      // Build list of friend IDs (NOT including yourself)
       const friendIds: string[] = []
       if (friendships && friendships.length > 0) {
         setHasFriends(true)
@@ -67,25 +66,33 @@ export default function FeedPage() {
       if (error) { console.error('Feed error:', error.message); setLoading(false); return }
 
       if (data && data.length > 0) {
+        // Fetch profiles
         const userIds = [...new Set(data.map((p: any) => p.user_id))]
         const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds)
-
         const profilesMap: Record<string, any> = {}
         if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
-        const merged = data.map((post: any) => ({
-          ...post,
-          profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
-          likes_count: 0,
-          comments_count: 0,
-          user_has_liked: false,
+        // Fetch likes and comments for each post
+        const withCounts = await Promise.all(data.map(async (post: any) => {
+          const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
+            supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle(),
+          ])
+          return {
+            ...post,
+            profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
+            likes_count: likes || 0,
+            comments_count: comments || 0,
+            user_has_liked: !!likedRes.data,
+          }
         }))
 
-        setPosts(merged as WorkoutPost[])
+        setPosts(withCounts as WorkoutPost[])
 
         const today = new Date()
         today.setHours(0,0,0,0)
-        const active = merged
+        const active = withCounts
           .filter((p: any) => new Date(p.created_at) >= today && p.user_id !== user.id)
           .reduce((acc: any[], p: any) => {
             if (!acc.find((a) => a.id === p.user_id)) {
