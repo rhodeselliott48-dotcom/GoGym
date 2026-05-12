@@ -48,7 +48,7 @@ export default function AuthPage() {
         <div className="inline-flex items-center justify-center w-16 h-16 bg-brand rounded-2xl mb-4 shadow-lg shadow-brand/30">
           <span className="font-display text-3xl text-white">GG</span>
         </div>
-        <h1 className="font-display text-5xl tracking-wide text-white">GoGym</h1>
+        <h1 className="font-display text-5xl tracking-wide text-white">Go<span className="text-brand">Gym</span></h1>
         <p className="text-light-gray/60 text-sm mt-1 tracking-widest uppercase font-medium">Lift Together</p>
       </div>
 
