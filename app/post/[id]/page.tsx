@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { WorkoutPost, Comment } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 import BodyMap from '@/components/BodyMap'
-import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users, CornerDownRight } from 'lucide-react'
+import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users, CornerDownRight, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -38,29 +38,25 @@ export default function PostDetailPage() {
   const [loading, setLoading] = useState(true)
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [expandedExercise, setExpandedExercise] = useState<number | null>(null)
   const commentInputRef = useRef<HTMLInputElement>(null)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
     const supabase = supabaseRef.current
-
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
-
       const { data: p } = await supabase.from('workout_posts').select('*').eq('id', id).single()
-
       if (p) {
         const { data: prof } = await supabase.from('profiles').select('*').eq('id', p.user_id).single()
         setPost({ ...p, profiles: prof } as WorkoutPost)
-
         const [{ count: likes }, likedRes] = await Promise.all([
           supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', id),
           user ? supabase.from('post_likes').select('id').eq('post_id', id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
         ])
         setLikeCount(likes || 0)
         setLiked(!!likedRes.data)
-
         await loadComments(user?.id ?? null)
       }
       setLoading(false)
@@ -70,27 +66,14 @@ export default function PostDetailPage() {
 
   async function loadComments(userId: string | null) {
     const supabase = supabaseRef.current
-
-    const { data: cmts } = await supabase
-      .from('comments')
-      .select('*')
-      .eq('post_id', id)
-      .order('created_at')
-
+    const { data: cmts } = await supabase.from('comments').select('*').eq('post_id', id).order('created_at')
     if (!cmts || cmts.length === 0) { setComments([]); return }
-
     const commentUserIds = [...new Set(cmts.map((c: any) => c.user_id))]
     const { data: commentProfiles } = await supabase.from('profiles').select('*').in('id', commentUserIds)
     const profileMap: Record<string, any> = {}
     if (commentProfiles) commentProfiles.forEach((p: any) => { profileMap[p.id] = p })
-
-    // Get likes for all comments
     const commentIds = cmts.map((c: any) => c.id)
-    const { data: allLikes } = await supabase
-      .from('comment_likes')
-      .select('comment_id, user_id')
-      .in('comment_id', commentIds)
-
+    const { data: allLikes } = await supabase.from('comment_likes').select('comment_id, user_id').in('comment_id', commentIds)
     const likesMap: Record<string, number> = {}
     const userLikedMap: Record<string, boolean> = {}
     if (allLikes) {
@@ -99,7 +82,6 @@ export default function PostDetailPage() {
         if (l.user_id === userId) userLikedMap[l.comment_id] = true
       })
     }
-
     const cmtsWithExtras: CommentWithExtras[] = cmts.map((c: any) => ({
       ...c,
       profiles: profileMap[c.user_id] || { username: 'unknown', avatar_url: null },
@@ -108,15 +90,12 @@ export default function PostDetailPage() {
       replies: [],
       parent_id: c.parent_id || null,
     }))
-
-    // Nest replies under parent comments
     const topLevel = cmtsWithExtras.filter(c => !c.parent_id)
     const replies = cmtsWithExtras.filter(c => c.parent_id)
     replies.forEach(reply => {
       const parent = topLevel.find(c => c.id === reply.parent_id)
       if (parent) parent.replies.push(reply)
     })
-
     setComments(topLevel)
   }
 
@@ -154,14 +133,12 @@ export default function PostDetailPage() {
   async function submitComment() {
     const supabase = supabaseRef.current
     if (!newComment.trim() || !currentUserId) return
-
     await supabase.from('comments').insert({
       post_id: id,
       user_id: currentUserId,
       content: newComment.trim(),
       parent_id: replyingTo?.id || null,
     })
-
     setNewComment('')
     setReplyingTo(null)
     await loadComments(currentUserId)
@@ -214,8 +191,7 @@ export default function PostDetailPage() {
           <p className="text-white/80 text-sm">{comment.content}</p>
         </div>
         <div className="flex items-center gap-4 mt-1 px-1">
-          <button onClick={() => toggleCommentLike(comment.id, comment.user_has_liked)}
-            className="flex items-center gap-1 press">
+          <button onClick={() => toggleCommentLike(comment.id, comment.user_has_liked)} className="flex items-center gap-1 press">
             <Heart size={12} className={comment.user_has_liked ? 'fill-brand text-brand' : 'text-muted'} strokeWidth={comment.user_has_liked ? 0 : 1.8} />
             {comment.likes_count > 0 && <span className={`text-xs font-semibold ${comment.user_has_liked ? 'text-brand' : 'text-muted'}`}>{comment.likes_count}</span>}
           </button>
@@ -227,10 +203,7 @@ export default function PostDetailPage() {
             </button>
           )}
         </div>
-        {/* Replies */}
-        {comment.replies.map(reply => (
-          <CommentItem key={reply.id} comment={reply} isReply />
-        ))}
+        {comment.replies.map(reply => <CommentItem key={reply.id} comment={reply} isReply />)}
       </div>
     </div>
   )
@@ -245,8 +218,7 @@ export default function PostDetailPage() {
         </div>
         <div className="flex items-center gap-3">
           {currentUserId === post.user_id && (
-            <button onClick={handleDelete} disabled={deleting}
-              className="text-red-400 hover:text-red-300 press p-1 disabled:opacity-50">
+            <button onClick={handleDelete} disabled={deleting} className="text-red-400 hover:text-red-300 press p-1 disabled:opacity-50">
               <Trash2 size={18} />
             </button>
           )}
@@ -306,9 +278,7 @@ export default function PostDetailPage() {
                 @{username}
               </Link>
             ))}
-            {post.group_name && (
-              <span className="text-xs text-white/50 ml-1">· {post.group_name}</span>
-            )}
+            {post.group_name && <span className="text-xs text-white/50 ml-1">· {post.group_name}</span>}
           </div>
         )}
 
@@ -339,36 +309,60 @@ export default function PostDetailPage() {
         )}
 
         {/* Caption */}
-        {post.caption && (
-          <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>
-        )}
+        {post.caption && <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>}
 
-        {/* Exercise list */}
+        {/* Exercise list - expandable */}
         {post.exercises?.length > 0 && (
           <div>
             <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Exercises</h3>
             <div className="space-y-2">
               {post.exercises.map((ex, i) => {
                 const info = findExercise(ex.name)
+                const isExpanded = expandedExercise === i
                 return (
-                  <div key={i} className="bg-surface-2 rounded-xl border border-border px-4 py-3">
+                  <button key={i}
+                    onClick={() => setExpandedExercise(isExpanded ? null : i)}
+                    className="w-full bg-surface-2 rounded-xl border border-border px-4 py-3 text-left transition-all press">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-brand font-display text-sm w-5">{i+1}</span>
-                        <div>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-brand font-display text-sm w-5 flex-shrink-0">{i+1}</span>
+                        <div className="min-w-0 flex-1">
                           <p className="font-semibold text-white text-sm flex items-center gap-1.5">
                             {ex.name}
                             {ex.is_pr && <Star size={12} className="text-yellow-400 fill-yellow-400" />}
                           </p>
-                          {info && <p className="text-muted text-xs mt-0.5">{info.description.slice(0, 60)}...</p>}
+                          {!isExpanded && info && (
+                            <p className="text-muted text-xs mt-0.5 truncate">{info.description.slice(0, 50)}...</p>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-brand font-semibold text-sm">{ex.sets}×{ex.reps}</p>
-                        {ex.weight && <p className="text-muted text-xs">{ex.weight} lbs</p>}
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        <div className="text-right">
+                          <p className="text-brand font-semibold text-sm">{ex.sets}×{ex.reps}</p>
+                          {ex.weight && <p className="text-muted text-xs">{ex.weight} lbs</p>}
+                        </div>
+                        {info && (isExpanded
+                          ? <ChevronUp size={14} className="text-muted" />
+                          : <ChevronDown size={14} className="text-muted" />
+                        )}
                       </div>
                     </div>
-                  </div>
+                    {/* Expanded description */}
+                    {isExpanded && info && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-light-gray/70 text-sm leading-relaxed">{info.description}</p>
+                        {info.muscles && info.muscles.length > 0 && (
+                          <div className="flex gap-1.5 flex-wrap mt-2">
+                            {info.muscles.map(m => (
+                              <span key={m} className="text-xs bg-brand/10 text-brand border border-brand/20 px-2 py-0.5 rounded-full">
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </button>
                 )
               })}
             </div>
@@ -411,27 +405,20 @@ export default function PostDetailPage() {
             {comments.map(c => <CommentItem key={c.id} comment={c} />)}
           </div>
 
-          {/* Reply indicator */}
           {replyingTo && (
             <div className="flex items-center gap-2 bg-brand/10 border border-brand/20 rounded-xl px-3 py-2 mb-2">
               <CornerDownRight size={14} className="text-brand" />
               <span className="text-brand text-xs flex-1">Replying to @{replyingTo.username}</span>
-              <button onClick={() => { setReplyingTo(null); setNewComment('') }} className="text-muted press">
-                ✕
-              </button>
+              <button onClick={() => { setReplyingTo(null); setNewComment('') }} className="text-muted press">✕</button>
             </div>
           )}
 
           <div className="flex gap-2">
-            <input
-              ref={commentInputRef}
-              value={newComment}
-              onChange={e => setNewComment(e.target.value)}
+            <input ref={commentInputRef} value={newComment} onChange={e => setNewComment(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submitComment()}
               placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
               maxLength={200}
-              className="flex-1 bg-surface-2 border border-border rounded-2xl px-4 py-3 text-white text-sm placeholder-muted"
-            />
+              className="flex-1 bg-surface-2 border border-border rounded-2xl px-4 py-3 text-white text-sm placeholder-muted" />
             <button onClick={submitComment} disabled={!newComment.trim()}
               className="bg-brand text-white rounded-2xl px-4 press disabled:opacity-40">
               <Send size={18} />
@@ -441,8 +428,7 @@ export default function PostDetailPage() {
       </div>
 
       {selectedPhoto && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
-          onClick={() => setSelectedPhoto(null)}>
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setSelectedPhoto(null)}>
           <img src={selectedPhoto} alt="Photo" className="max-w-full max-h-full object-contain rounded-2xl" />
         </div>
       )}
