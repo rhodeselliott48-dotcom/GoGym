@@ -25,11 +25,37 @@ export default function DiscoverPage() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      const { data, error } = await supabase
+      // Get friend IDs to exclude
+      const excludeIds: string[] = []
+      if (user) {
+        excludeIds.push(user.id)
+
+        const { data: friendships } = await supabase
+          .from('friendships')
+          .select('user_id, friend_id')
+          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+          .eq('status', 'accepted')
+
+        if (friendships) {
+          friendships.forEach((f: any) => {
+            const otherId = f.user_id === user.id ? f.friend_id : f.user_id
+            if (!excludeIds.includes(otherId)) excludeIds.push(otherId)
+          })
+        }
+      }
+
+      // Fetch posts excluding yourself and friends
+      let query = supabase
         .from('workout_posts')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
+
+      if (excludeIds.length > 0) {
+        query = query.not('user_id', 'in', `(${excludeIds.join(',')})`)
+      }
+
+      const { data, error } = await query
 
       if (error) { console.error(error); setLoading(false); return }
 
@@ -52,6 +78,9 @@ export default function DiscoverPage() {
 
         setPosts(merged as WorkoutPost[])
         setFiltered(merged as WorkoutPost[])
+      } else {
+        setPosts([])
+        setFiltered([])
       }
       setLoading(false)
     }
@@ -112,7 +141,7 @@ export default function DiscoverPage() {
           <div className="text-center py-20">
             <p className="text-5xl mb-4">🔍</p>
             <p className="text-white font-display text-2xl">Nothing here</p>
-            <p className="text-muted text-sm mt-2">Try a different filter or location</p>
+            <p className="text-muted text-sm mt-2">No posts from other users yet</p>
           </div>
         ) : (
           filtered.map(post => <WorkoutCard key={post.id} post={post} currentUserId={currentUserId ?? undefined} />)
