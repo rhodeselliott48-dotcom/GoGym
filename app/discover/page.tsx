@@ -25,7 +25,6 @@ export default function DiscoverPage() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      // Get friend IDs to exclude
       const excludeIds: string[] = []
       if (user) {
         excludeIds.push(user.id)
@@ -44,7 +43,6 @@ export default function DiscoverPage() {
         }
       }
 
-      // Fetch posts excluding yourself and friends
       let query = supabase
         .from('workout_posts')
         .select('*')
@@ -56,28 +54,32 @@ export default function DiscoverPage() {
       }
 
       const { data, error } = await query
-
       if (error) { console.error(error); setLoading(false); return }
 
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((p: any) => p.user_id))]
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('id', userIds)
-
+        const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds)
         const profilesMap: Record<string, any> = {}
         if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
-        const merged = data.map((post: any) => ({
-          ...post,
-          profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
-          likes_count: 0,
-          user_has_liked: false,
+        // Fetch likes and comments
+        const withCounts = await Promise.all(data.map(async (post: any) => {
+          const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
+            supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            user ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+          ])
+          return {
+            ...post,
+            profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
+            likes_count: likes || 0,
+            comments_count: comments || 0,
+            user_has_liked: !!likedRes.data,
+          }
         }))
 
-        setPosts(merged as WorkoutPost[])
-        setFiltered(merged as WorkoutPost[])
+        setPosts(withCounts as WorkoutPost[])
+        setFiltered(withCounts as WorkoutPost[])
       } else {
         setPosts([])
         setFiltered([])
