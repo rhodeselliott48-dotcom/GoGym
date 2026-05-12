@@ -1,59 +1,81 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { ArrowLeft, Search, UserPlus, Check, X, Users } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
 
 interface UserResult { id: string; username: string; full_name: string | null; avatar_url: string | null }
-interface FriendRequest { id: string; sender_id: string; profiles: UserResult }
+interface PendingRequest { id: string; sender_id: string; username: string; full_name: string | null; avatar_url: string | null }
 interface Friend { id: string; username: string; full_name: string | null; avatar_url: string | null }
 
 export default function FriendsPage() {
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<UserResult[]>([])
-  const [pending, setPending] = useState<FriendRequest[]>([])
+  const [pending, setPending] = useState<PendingRequest[]>([])
   const [friends, setFriends] = useState<Friend[]>([])
   const [sentRequests, setSentRequests] = useState<string[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabaseRef = useRef(createClient())
   const router = useRouter()
 
   useEffect(() => {
+    const supabase = supabaseRef.current
+
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth'); return }
       setCurrentUserId(user.id)
 
-      // Pending requests sent TO me
+      // Get pending requests sent TO me
       const { data: reqs } = await supabase
         .from('friendships')
-        .select('id, sender_id, profiles!friendships_sender_id_fkey(id, username, full_name, avatar_url)')
+        .select('id, sender_id')
         .eq('receiver_id', user.id)
         .eq('status', 'pending')
-      if (reqs) setPending(reqs as any)
 
-      // My friends
+      if (reqs && reqs.length > 0) {
+        const senderIds = reqs.map((r: any) => r.sender_id)
+        const { data: senderProfiles } = await supabase
+          .from('profiles')
+          .select('id, username, full_name, avatar_url')
+          .in('id', senderIds)
+
+        const profileMap: Record<string, any> = {}
+        if (senderProfiles) senderProfiles.forEach((p: any) => { profileMap[p.id] = p })
+
+        const pendingWithProfiles = reqs.map((r: any) => ({
+          id: r.id,
+          sender_id: r.sender_id,
+          username: profileMap[r.sender_id]?.username || 'unknown',
+          full_name: profileMap[r.sender_id]?.full_name || null,
+          avatar_url: profileMap[r.sender_id]?.avatar_url || null,
+        }))
+        setPending(pendingWithProfiles)
+      }
+
+      // Get my accepted friends
       const { data: myFriends } = await supabase
         .from('friendships')
-        .select('id, user_id, friend_id')
+        .select('user_id, friend_id')
         .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
         .eq('status', 'accepted')
 
-      if (myFriends) {
-        const friendIds = myFriends.map(f => f.user_id === user.id ? f.friend_id : f.user_id)
-        if (friendIds.length) {
-          const { data: fp } = await supabase.from('profiles').select('id, username, full_name, avatar_url').in('id', friendIds)
-          if (fp) setFriends(fp)
-        }
+      if (myFriends && myFriends.length > 0) {
+        const friendIds = myFriends.map((f: any) => f.user_id === user.id ? f.friend_id : f.user_id)
+        const { data: fp } = await supabase.from('profiles').select('id, username, full_name, avatar_url').in('id', friendIds)
+        if (fp) setFriends(fp)
       }
 
-      // Requests I sent (pending)
-      const { data: sent } = await supabase.from('friendships').select('receiver_id').eq('sender_id', user.id).eq('status', 'pending')
-      if (sent) setSentRequests(sent.map(s => s.receiver_id))
+      // Get requests I sent (pending)
+      const { data: sent } = await supabase
+        .from('friendships')
+        .select('receiver_id')
+        .eq('sender_id', user.id)
+        .eq('status', 'pending')
+      if (sent) setSentRequests(sent.map((s: any) => s.receiver_id))
 
       setLoading(false)
     }
@@ -62,33 +84,48 @@ export default function FriendsPage() {
 
   async function searchUsers() {
     if (!search.trim()) return
-    const { data } = await supabase.from('profiles').select('id, username, full_name, avatar_url')
-      .ilike('username', `%${search}%`).neq('id', currentUserId!).limit(10)
+    const supabase = supabaseRef.current
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .ilike('username', `%${search}%`)
+      .neq('id', currentUserId!)
+      .limit(10)
     if (data) setResults(data)
   }
 
   async function sendRequest(receiverId: string) {
-    await supabase.from('friendships').insert({ sender_id: currentUserId!, receiver_id: receiverId, status: 'pending', user_id: currentUserId!, friend_id: receiverId })
+    const supabase = supabaseRef.current
+    await supabase.from('friendships').insert({
+      sender_id: currentUserId!,
+      receiver_id: receiverId,
+      user_id: currentUserId!,
+      friend_id: receiverId,
+      status: 'pending'
+    })
     setSentRequests(prev => [...prev, receiverId])
   }
 
   async function handleRequest(id: string, senderId: string, accept: boolean) {
+    const supabase = supabaseRef.current
     if (accept) {
-      await supabase.from('friendships').update({ status: 'accepted', user_id: senderId, friend_id: currentUserId! }).eq('id', id)
+      await supabase.from('friendships').update({
+        status: 'accepted',
+        user_id: senderId,
+        friend_id: currentUserId!
+      }).eq('id', id)
+      const { data: p } = await supabase.from('profiles').select('id, username, full_name, avatar_url').eq('id', senderId).single()
+      if (p) setFriends(prev => [...prev, p])
     } else {
       await supabase.from('friendships').delete().eq('id', id)
     }
     setPending(prev => prev.filter(r => r.id !== id))
-    if (accept) {
-      const { data: p } = await supabase.from('profiles').select('id, username, full_name, avatar_url').eq('id', senderId).single()
-      if (p) setFriends(prev => [...prev, p])
-    }
   }
 
-  const Avatar = ({ user }: { user: Pick<UserResult, 'username' | 'avatar_url'> }) => (
+  const Avatar = ({ user }: { user: { username: string; avatar_url: string | null } }) => (
     <div className="w-10 h-10 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
       {user.avatar_url ? (
-        <Image src={user.avatar_url} alt="" width={40} height={40} className="object-cover" />
+        <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-brand font-display font-bold">
           {user.username[0].toUpperCase()}
@@ -105,6 +142,11 @@ export default function FriendsPage() {
           <Users size={18} className="text-brand" />
           <h2 className="font-display text-2xl tracking-wide">Friends</h2>
         </div>
+        {pending.length > 0 && (
+          <span className="ml-auto bg-brand text-white text-xs font-bold px-2 py-1 rounded-full">
+            {pending.length} pending
+          </span>
+        )}
       </header>
 
       <div className="px-4 py-5 space-y-6">
@@ -121,6 +163,7 @@ export default function FriendsPage() {
             </div>
             <button onClick={searchUsers} className="bg-brand text-white px-4 rounded-xl font-semibold text-sm press">Go</button>
           </div>
+
           {results.length > 0 && (
             <div className="mt-3 space-y-2">
               {results.map(u => {
@@ -160,10 +203,10 @@ export default function FriendsPage() {
             </p>
             <div className="space-y-2">
               {pending.map(req => (
-                <div key={req.id} className="flex items-center gap-3 bg-surface-2 rounded-2xl px-4 py-3 border border-brand/20">
-                  <Avatar user={req.profiles} />
+                <div key={req.id} className="flex items-center gap-3 bg-brand/10 rounded-2xl px-4 py-3 border border-brand/20">
+                  <Avatar user={req} />
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-white text-sm">@{req.profiles.username}</p>
+                    <p className="font-semibold text-white text-sm">@{req.username}</p>
                     <p className="text-muted text-xs">wants to connect</p>
                   </div>
                   <div className="flex gap-2">
