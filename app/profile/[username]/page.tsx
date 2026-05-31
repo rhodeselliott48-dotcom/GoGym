@@ -42,25 +42,32 @@ export default function PublicProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      const { data: p } = await supabase.from('profiles').select('*').eq('username', username).single()
+      // Decode username in case it's URL-encoded on mobile
+      const decodedUsername = decodeURIComponent(username).replace('@', '').toLowerCase().trim()
+
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', decodedUsername)
+        .single()
+
       if (!p) { setLoading(false); return }
       setProfile(p)
 
-      // Get friend count for this user
+      // Friend count — using user_a/user_b to match schema
       const { count: fc } = await supabase
         .from('friendships')
         .select('*', { count: 'exact', head: true })
-        .or(`user_id.eq.${p.id},friend_id.eq.${p.id}`)
+        .or(`user_a.eq.${p.id},user_b.eq.${p.id}`)
         .eq('status', 'accepted')
       setFriendCount(fc || 0)
 
-      // Fetch own posts + mentioned posts
+      // Posts
       const [{ data: ownPosts }, { data: mentionedPosts }] = await Promise.all([
         supabase.from('workout_posts').select('*').eq('user_id', p.id).order('created_at', { ascending: false }),
         supabase.from('workout_posts').select('*').contains('mentions', [p.username]).order('created_at', { ascending: false }),
       ])
 
-      // Merge and deduplicate
       const allPosts = [...(ownPosts || []), ...(mentionedPosts || [])]
       const seen = new Set()
       const dedupedPosts = allPosts.filter((post: any) => {
@@ -69,14 +76,12 @@ export default function PublicProfilePage() {
         return true
       }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-      // Get profiles for all posts
       const userIds = [...new Set(dedupedPosts.map((post: any) => post.user_id))]
       const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds as string[])
       const profilesMap: Record<string, any> = {}
       if (profilesData) profilesData.forEach((prof: any) => { profilesMap[prof.id] = prof })
       profilesMap[p.id] = p
 
-      // Fetch likes and comments
       const postsWithCounts = await Promise.all(dedupedPosts.map(async (post: any) => {
         const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
           supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
@@ -94,10 +99,13 @@ export default function PublicProfilePage() {
 
       setPosts(postsWithCounts as WorkoutPost[])
 
+      // Friend status — using sender_id/receiver_id
       if (user && user.id !== p.id) {
-        const { data: fs } = await supabase.from('friendships').select('status')
-          .or(`and(sender_id.eq.${user.id},receiver_id.eq.${p.id}),and(sender_id.eq.${p.id},receiver_id.eq.${user.id})`)
-          .single()
+        const { data: fs } = await supabase
+          .from('friendships')
+          .select('status')
+          .or(`and(user_a.eq.${user.id},user_b.eq.${p.id}),and(user_a.eq.${p.id},user_b.eq.${user.id})`)
+          .maybeSingle()
         if (fs) setFriendStatus(fs.status === 'accepted' ? 'friends' : 'pending')
       }
       setLoading(false)
@@ -109,11 +117,9 @@ export default function PublicProfilePage() {
     const supabase = supabaseRef.current
     if (!currentUserId || !profile) return
     await supabase.from('friendships').insert({
-      sender_id: currentUserId,
-      receiver_id: profile.id,
+      user_a: currentUserId,
+      user_b: profile.id,
       status: 'pending',
-      user_id: currentUserId,
-      friend_id: profile.id
     })
     setFriendStatus('pending')
   }
@@ -129,7 +135,7 @@ export default function PublicProfilePage() {
   if (!profile) return (
     <div className="min-h-screen bg-[#0f0f0f] flex flex-col items-center justify-center gap-4">
       <p className="text-white font-display text-2xl">User not found</p>
-      <Link href="/feed" className="text-brand text-sm">Back to feed</Link>
+      <Link href="/discover" className="text-brand text-sm">Back to Discover</Link>
     </div>
   )
 
@@ -138,7 +144,7 @@ export default function PublicProfilePage() {
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-nav">
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3">
-        <Link href="/feed" className="text-muted hover:text-white press"><ArrowLeft size={20} /></Link>
+        <Link href="/discover" className="text-muted hover:text-white press"><ArrowLeft size={20} /></Link>
         <h2 className="font-display text-2xl tracking-wide">@{profile.username}</h2>
         {!isOwnProfile && currentUserId && (
           <div className="ml-auto">
@@ -159,7 +165,6 @@ export default function PublicProfilePage() {
       </header>
 
       <div className="px-4 pt-6 pb-4 space-y-5">
-        {/* Avatar + name */}
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-full bg-surface-3 border-2 border-brand/50 overflow-hidden">
             {profile.avatar_url ? (
@@ -177,7 +182,6 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: 'Workouts', value: posts.length },
@@ -191,10 +195,8 @@ export default function PublicProfilePage() {
           ))}
         </div>
 
-        {/* Bio */}
         {profile.bio && <p className="text-white/70 text-sm leading-relaxed">{profile.bio}</p>}
 
-        {/* Favorite split + exercises */}
         <div className="flex gap-2 flex-wrap">
           {profile.favorite_split && (
             <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full">{profile.favorite_split}</span>
@@ -204,7 +206,6 @@ export default function PublicProfilePage() {
           ))}
         </div>
 
-        {/* Badges */}
         <div>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-1 h-5 bg-brand rounded-full" />
@@ -224,7 +225,6 @@ export default function PublicProfilePage() {
         </div>
       </div>
 
-      {/* Posts */}
       <div className="px-4 space-y-4 stagger">
         <div className="flex items-center gap-2">
           <Flame size={16} className="text-brand" />
