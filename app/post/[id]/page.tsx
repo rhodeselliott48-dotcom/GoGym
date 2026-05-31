@@ -119,7 +119,7 @@ function CommentItem({
               />
               <div className="flex gap-2">
                 <button
-                  onClick={() => onStartEdit('', '')}
+  onClick={() => { onStartEdit(comment.id, comment.content); setCommentMenuId(null) }}
                   className="flex-1 py-1.5 text-xs text-muted border border-border rounded-lg press">
                   Cancel
                 </button>
@@ -351,12 +351,19 @@ export default function PostDetailPage() {
   }
 
   async function saveCommentEdit(commentId: string) {
-    if (!editingCommentText.trim()) return
-    await supabaseRef.current.from('comments').update({ content: editingCommentText.trim() }).eq('id', commentId)
+  if (!editingCommentText.trim()) return
+  const { error } = await supabaseRef.current
+    .from('comments')
+    .update({ content: editingCommentText.trim() })
+    .eq('id', commentId)
+    .eq('user_id', currentUserId!)
+  if (!error) {
     setEditingCommentId(null)
     setEditingCommentText('')
-    await loadComments(currentUserId)
+    const { data: { user } } = await supabaseRef.current.auth.getUser()
+    await loadComments(user?.id ?? null)
   }
+}
 
   async function deleteComment(commentId: string) {
     await supabaseRef.current.from('comments').delete().eq('id', commentId)
@@ -371,9 +378,14 @@ export default function PostDetailPage() {
   }
 
   function startEditComment(commentId: string, content: string) {
-    setEditingCommentId(commentId || null)
-    setEditingCommentText(content)
+  if (!commentId) {
+    setEditingCommentId(null)
+    setEditingCommentText('')
+    return
   }
+  setEditingCommentId(commentId)
+  setEditingCommentText(content)
+}
 
   function updateEditExercise(i: number, field: keyof Exercise, value: any) {
     setEditExercises(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
