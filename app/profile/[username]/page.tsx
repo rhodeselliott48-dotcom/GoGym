@@ -60,17 +60,13 @@ export default function DiscoverPage() {
         const userIds = [...new Set(data.map((p: any) => p.user_id))]
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('id, username, full_name, avatar_url')
+          .select('*')
           .in('id', userIds)
 
         const profilesMap: Record<string, any> = {}
         if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
         const withCounts = await Promise.all(data.map(async (post: any) => {
-          const profile = profilesMap[post.user_id]
-          // Skip posts where we couldn't load a profile with a username
-          if (!profile?.username) return null
-
           const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
             supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
@@ -78,16 +74,15 @@ export default function DiscoverPage() {
           ])
           return {
             ...post,
-            profiles: profile,
+            profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
             likes_count: likes || 0,
             comments_count: comments || 0,
             user_has_liked: !!likedRes?.data,
           }
         }))
 
-        const validPosts = withCounts.filter(Boolean) as WorkoutPost[]
-        setPosts(validPosts)
-        setFiltered(validPosts)
+        setPosts(withCounts as WorkoutPost[])
+        setFiltered(withCounts as WorkoutPost[])
       } else {
         setPosts([])
         setFiltered([])
