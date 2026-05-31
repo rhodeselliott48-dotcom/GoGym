@@ -2,12 +2,21 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
-import { WorkoutPost, Comment } from '@/lib/types'
+import { WorkoutPost, Comment, Exercise, WorkoutType, Mood, SessionType } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 import BodyMap from '@/components/BodyMap'
-import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users, CornerDownRight, ChevronDown, ChevronUp, MoreVertical, Edit2, X, Check } from 'lucide-react'
+import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users, CornerDownRight, ChevronDown, ChevronUp, MoreVertical, Edit2, Check, Plus, Globe, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
+
+const WORKOUT_TYPES: WorkoutType[] = ['Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body', 'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other']
+const MOODS: Mood[] = ['🔥 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
+const SET_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
+const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20','25','30','AMRAP','Failure']
+const INCLINE_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15']
+const SPEED_OPTIONS = ['1.0','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','8.0','9.0','10.0']
+
+function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', weight: '', is_pr: false, notes: '' } }
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime()
@@ -42,12 +51,24 @@ export default function PostDetailPage() {
   const [expandedExercise, setExpandedExercise] = useState<number | null>(null)
   const [showPostMenu, setShowPostMenu] = useState(false)
   const [editingPost, setEditingPost] = useState(false)
-  const [editCaption, setEditCaption] = useState('')
-  const [editTitle, setEditTitle] = useState('')
   const [savingPost, setSavingPost] = useState(false)
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editingCommentText, setEditingCommentText] = useState('')
   const [commentMenuId, setCommentMenuId] = useState<string | null>(null)
+
+  // Full edit state
+  const [editTitle, setEditTitle] = useState('')
+  const [editCaption, setEditCaption] = useState('')
+  const [editWorkoutType, setEditWorkoutType] = useState<WorkoutType | ''>('')
+  const [editMood, setEditMood] = useState<Mood | ''>('')
+  const [editDuration, setEditDuration] = useState('')
+  const [editGymLocation, setEditGymLocation] = useState('')
+  const [editCity, setEditCity] = useState('')
+  const [editExercises, setEditExercises] = useState<Exercise[]>([])
+  const [editIsPublic, setEditIsPublic] = useState(true)
+  const [editWorkoutDropdown, setEditWorkoutDropdown] = useState(false)
+  const [editExpandedNotes, setEditExpandedNotes] = useState<Record<number, boolean>>({})
+
   const commentInputRef = useRef<HTMLInputElement>(null)
   const supabaseRef = useRef(createClient())
 
@@ -60,8 +81,15 @@ export default function PostDetailPage() {
       if (p) {
         const { data: prof } = await supabase.from('profiles').select('*').eq('id', p.user_id).single()
         setPost({ ...p, profiles: prof } as WorkoutPost)
-        setEditCaption(p.caption || '')
         setEditTitle(p.title || '')
+        setEditCaption(p.caption || '')
+        setEditWorkoutType(p.workout_type || '')
+        setEditMood(p.mood || '')
+        setEditDuration(p.duration_minutes?.toString() || '')
+        setEditGymLocation(p.gym_location || '')
+        setEditCity(p.city || '')
+        setEditExercises(p.exercises?.length ? p.exercises : [emptyExercise()])
+        setEditIsPublic(p.is_public !== false)
         const [{ count: likes }, likedRes] = await Promise.all([
           supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', id),
           user ? supabase.from('post_likes').select('id').eq('post_id', id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
@@ -142,12 +170,31 @@ export default function PostDetailPage() {
   }
 
   async function savePostEdit() {
+    if (!editTitle.trim()) return
     setSavingPost(true)
     await supabaseRef.current.from('workout_posts').update({
       title: editTitle,
       caption: editCaption,
+      workout_type: editWorkoutType || 'Other',
+      mood: editMood || null,
+      duration_minutes: editDuration ? parseInt(editDuration) : null,
+      gym_location: editGymLocation,
+      city: editCity,
+      exercises: editExercises,
+      is_public: editIsPublic,
     }).eq('id', id)
-    setPost(prev => prev ? { ...prev, title: editTitle, caption: editCaption } : prev)
+    setPost(prev => prev ? {
+      ...prev,
+      title: editTitle,
+      caption: editCaption,
+      workout_type: (editWorkoutType || 'Other') as WorkoutType,
+      mood: (editMood || null) as Mood | null,
+      duration_minutes: editDuration ? parseInt(editDuration) : null,
+      gym_location: editGymLocation,
+      city: editCity,
+      exercises: editExercises,
+      is_public: editIsPublic,
+    } : prev)
     setEditingPost(false)
     setSavingPost(false)
   }
@@ -185,12 +232,17 @@ export default function PostDetailPage() {
     commentInputRef.current?.focus()
   }
 
+  function updateEditExercise(i: number, field: keyof Exercise, value: any) {
+    setEditExercises(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
+  }
+
   const allMuscles = post?.exercises?.flatMap(e => findExercise(e.name)?.muscles || []) || []
   const uniqueMuscles = [...new Set(allMuscles)]
   const totalSets = post?.exercises?.reduce((s, e) => s + e.sets, 0) || 0
   const prExercises = post?.exercises?.filter(e => e.is_pr) || []
   const hasMentions = post?.mentions && post.mentions.length > 0
   const totalComments = comments.reduce((s, c) => s + 1 + c.replies.length, 0)
+  const isStaircasterOrTreadmill = editWorkoutType === 'Stairmaster' || editWorkoutType === 'Treadmill'
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
@@ -233,12 +285,15 @@ export default function PostDetailPage() {
               </div>
               {isOwnComment && (
                 <div className="relative">
-                  <button onClick={() => setCommentMenuId(menuOpen ? null : comment.id)}
+                  <button
+                    onClick={e => { e.stopPropagation(); setCommentMenuId(menuOpen ? null : comment.id) }}
                     className="text-muted press p-1">
                     <MoreVertical size={13} />
                   </button>
                   {menuOpen && (
-                    <div className="absolute right-0 top-full mt-1 bg-[#1a1a1a] border border-border rounded-xl overflow-hidden z-50 shadow-xl min-w-[120px]">
+                    <div
+                      className="absolute right-0 top-full mt-1 bg-[#1a1a1a] border border-border rounded-xl overflow-hidden z-50 shadow-xl min-w-[120px]"
+                      onClick={e => e.stopPropagation()}>
                       <button onClick={() => {
                         setEditingCommentId(comment.id)
                         setEditingCommentText(comment.content)
@@ -290,6 +345,198 @@ export default function PostDetailPage() {
     )
   }
 
+  // EDIT MODE — full form
+  if (editingPost) {
+    return (
+      <div className="min-h-screen bg-[#0f0f0f] pb-nav">
+        <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3">
+          <button onClick={() => setEditingPost(false)} className="text-muted hover:text-white press"><ArrowLeft size={20} /></button>
+          <h2 className="font-display text-2xl tracking-wide flex-1">Edit Workout</h2>
+          <button onClick={savePostEdit} disabled={savingPost || !editTitle.trim()}
+            className="bg-brand text-white text-sm font-semibold px-4 py-2 rounded-xl press disabled:opacity-40 flex items-center gap-2">
+            <Check size={16} /> {savingPost ? 'Saving...' : 'Save'}
+          </button>
+        </header>
+
+        <div className="px-4 py-6 space-y-5">
+
+          {/* Visibility */}
+          <div className="flex gap-2">
+            <button onClick={() => setEditIsPublic(true)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
+                ${editIsPublic ? 'bg-brand text-white border-brand' : 'bg-surface-2 text-muted border-border'}`}>
+              <Globe size={15} /> Public
+            </button>
+            <button onClick={() => setEditIsPublic(false)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
+                ${!editIsPublic ? 'bg-surface-3 text-white border-white/20' : 'bg-surface-2 text-muted border-border'}`}>
+              <Lock size={15} /> Friends Only
+            </button>
+          </div>
+
+          {/* Title */}
+          <div>
+            <label className="field-label">Workout Title *</label>
+            <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="field-input" />
+          </div>
+
+          {/* Workout Type */}
+          <div>
+            <label className="field-label">Workout Type</label>
+            <div className="relative">
+              <button onClick={() => setEditWorkoutDropdown(!editWorkoutDropdown)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-all press
+                  ${editWorkoutType ? 'bg-brand/10 border-brand text-white' : 'bg-surface-2 border-border text-muted'}`}>
+                {editWorkoutType || 'Select type...'}
+                <ChevronDown size={16} className={`transition-transform ${editWorkoutDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              {editWorkoutDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden z-50 shadow-xl">
+                  {WORKOUT_TYPES.map(type => (
+                    <button key={type} onClick={() => { setEditWorkoutType(type); setEditWorkoutDropdown(false) }}
+                      className={`w-full text-left px-4 py-3 text-sm transition-all press border-b border-border/50 last:border-0
+                        ${editWorkoutType === type ? 'bg-brand text-white font-semibold' : 'text-white/70 hover:bg-surface-3'}`}>
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Mood */}
+          <div>
+            <label className="field-label">Mood</label>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {MOODS.map(m => (
+                <button key={m} type="button" onClick={() => setEditMood(editMood === m ? '' : m)}
+                  className={`flex-shrink-0 px-3 py-2 rounded-xl text-sm font-medium transition-all press border
+                    ${editMood === m ? 'bg-brand text-white border-brand' : 'bg-surface-2 text-white/80 border-border'}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Duration + City */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="field-label">Duration (mins)</label>
+              <input type="number" value={editDuration} onChange={e => setEditDuration(e.target.value)} placeholder="60" className="field-input" />
+            </div>
+            <div>
+              <label className="field-label">City</label>
+              <input value={editCity} onChange={e => setEditCity(e.target.value)} placeholder="Dallas, TX" className="field-input" />
+            </div>
+          </div>
+
+          {/* Gym location */}
+          <div>
+            <label className="field-label">Gym / Location</label>
+            <input value={editGymLocation} onChange={e => setEditGymLocation(e.target.value)} placeholder="e.g. LA Fitness" className="field-input" />
+          </div>
+
+          {/* Exercises */}
+          <div>
+            <label className="field-label">Exercises</label>
+            <div className="space-y-3">
+              {editExercises.map((ex, i) => (
+                <div key={i} className="bg-surface-2 rounded-2xl border border-border p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-brand font-display text-lg w-6">{i+1}</span>
+                    <input value={ex.name} onChange={e => updateEditExercise(i, 'name', e.target.value)}
+                      placeholder="Exercise name..." className="flex-1 field-input" />
+                    <button onClick={() => updateEditExercise(i, 'is_pr', !ex.is_pr)}
+                      className={`p-2 rounded-xl border press transition-all ${ex.is_pr ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400' : 'bg-surface-3 border-border text-muted'}`}>
+                      <Star size={16} className={ex.is_pr ? 'fill-yellow-400' : ''} />
+                    </button>
+                    {editExercises.length > 1 && (
+                      <button onClick={() => setEditExercises(prev => prev.filter((_, idx) => idx !== i))}
+                        className="p-2 text-muted hover:text-red-400 press"><Trash2 size={16} /></button>
+                    )}
+                  </div>
+
+                  {isStaircasterOrTreadmill ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="field-label">Incline / Setting</label>
+                        <select value={ex.sets} onChange={e => updateEditExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
+                          {INCLINE_OPTIONS.map(n => <option key={n} value={n}>Level {n}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Speed (mph)</label>
+                        <select value={ex.reps} onChange={e => updateEditExercise(i, 'reps', e.target.value)} className="field-input">
+                          {SPEED_OPTIONS.map(s => <option key={s} value={s}>{s} mph</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="field-label">Sets</label>
+                        <select value={ex.sets} onChange={e => updateEditExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
+                          {SET_OPTIONS.map(n => <option key={n} value={n}>{n} sets</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Reps</label>
+                        <select value={ex.reps} onChange={e => updateEditExercise(i, 'reps', e.target.value)} className="field-input">
+                          {REP_OPTIONS.map(r => <option key={r} value={r}>{r} reps</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="field-label">Weight (lbs)</label>
+                        <input type="number" value={ex.weight} onChange={e => updateEditExercise(i, 'weight', e.target.value)} placeholder="135" className="field-input" />
+                      </div>
+                    </div>
+                  )}
+
+                  <button onClick={() => setEditExpandedNotes(prev => ({ ...prev, [i]: !prev[i] }))}
+                    className="flex items-center gap-1.5 text-muted text-xs font-semibold press hover:text-white">
+                    {editExpandedNotes[i] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    {editExpandedNotes[i] ? 'Hide notes' : 'Add notes'}
+                  </button>
+                  {editExpandedNotes[i] && (
+                    <textarea value={ex.notes || ''} onChange={e => updateEditExercise(i, 'notes', e.target.value)}
+                      placeholder="e.g. felt heavy on set 2..." rows={2} maxLength={200}
+                      className="field-input resize-none text-xs" />
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setEditExercises(prev => [...prev, emptyExercise()])}
+              className="w-full mt-3 py-3 rounded-2xl border-2 border-dashed border-border text-muted flex items-center justify-center gap-2 hover:border-brand/40 hover:text-brand/70 transition-all press">
+              <Plus size={18} /><span className="font-semibold text-sm">Add Exercise</span>
+            </button>
+          </div>
+
+          {/* Caption */}
+          <div>
+            <label className="field-label">Caption</label>
+            <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)}
+              rows={3} maxLength={280}
+              className="field-input resize-none" />
+            <p className="text-muted text-xs text-right mt-1">{editCaption.length}/280</p>
+          </div>
+
+          <button onClick={savePostEdit} disabled={savingPost || !editTitle.trim()}
+            className="w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press disabled:opacity-40 shadow-lg shadow-brand/20 tracking-wide">
+            {savingPost ? 'SAVING...' : 'SAVE CHANGES ✓'}
+          </button>
+        </div>
+
+        <style jsx global>{`
+          .field-label { display: block; font-size: 0.65rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 0.375rem; }
+          .field-input { width: 100%; background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 0.75rem; padding: 0.75rem 1rem; color: white; font-size: 0.875rem; transition: all 0.15s; }
+          .field-input::placeholder { color: #666; }
+        `}</style>
+        <BottomNav />
+      </div>
+    )
+  }
+
+  // VIEW MODE
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-nav" onClick={() => { setShowPostMenu(false); setCommentMenuId(null) }}>
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3">
@@ -327,37 +574,7 @@ export default function PostDetailPage() {
         </div>
       </header>
 
-      {/* Edit post panel */}
-      {editingPost && (
-        <div className="mx-4 mt-3 bg-surface-2 border border-brand/30 rounded-2xl p-4 space-y-3">
-          <p className="text-brand text-xs font-semibold uppercase tracking-widest">Editing Post</p>
-          <div>
-            <label className="text-xs text-muted uppercase tracking-widest font-semibold mb-1 block">Title</label>
-            <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
-              className="w-full bg-surface-3 border border-border rounded-xl px-4 py-2.5 text-white text-sm" />
-          </div>
-          <div>
-            <label className="text-xs text-muted uppercase tracking-widest font-semibold mb-1 block">Caption</label>
-            <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)}
-              rows={3} maxLength={280}
-              className="w-full bg-surface-3 border border-border rounded-xl px-4 py-2.5 text-white text-sm resize-none" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setEditingPost(false)}
-              className="flex-1 py-2.5 border border-border text-muted rounded-xl text-sm font-semibold press">
-              Cancel
-            </button>
-            <button onClick={savePostEdit} disabled={savingPost}
-              className="flex-1 py-2.5 bg-brand text-white rounded-xl text-sm font-semibold press disabled:opacity-40 flex items-center justify-center gap-2">
-              <Check size={15} /> {savingPost ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="space-y-5 mt-3">
-
-        {/* BIG PHOTO */}
         {post.photo_urls?.length > 0 && (
           <div className="relative w-full">
             <img src={post.photo_urls[0]} alt="workout" className="w-full object-cover" style={{ maxHeight: '380px', minHeight: '240px' }} />
@@ -395,7 +612,6 @@ export default function PostDetailPage() {
         )}
 
         <div className="px-4 space-y-5">
-
           {!post.photo_urls?.length && (
             <div className="flex items-center gap-3">
               <Link href={`/profile/${post.profiles?.username}`}>
@@ -515,13 +731,11 @@ export default function PostDetailPage() {
                           {info && (isExpanded ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />)}
                         </div>
                       </div>
-                      {isExpanded && info && (
+                      {isExpanded && (
                         <div className="mt-3 pt-3 border-t border-border">
-                          <p className="text-light-gray/70 text-sm leading-relaxed">{info.description}</p>
-                          {ex.notes && (
-                            <p className="text-muted text-xs mt-2 italic">📝 {ex.notes}</p>
-                          )}
-                          {info.muscles && info.muscles.length > 0 && (
+                          {info && <p className="text-light-gray/70 text-sm leading-relaxed">{info.description}</p>}
+                          {ex.notes && <p className="text-muted text-xs mt-2 italic">📝 {ex.notes}</p>}
+                          {info?.muscles && info.muscles.length > 0 && (
                             <div className="flex gap-1.5 flex-wrap mt-2">
                               {info.muscles.map(m => (
                                 <span key={m} className="text-xs bg-brand/10 text-brand border border-brand/20 px-2 py-0.5 rounded-full">{m}</span>
