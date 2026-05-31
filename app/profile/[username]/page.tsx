@@ -33,6 +33,7 @@ export default function PublicProfilePage() {
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [friendStatus, setFriendStatus] = useState<'none'|'pending'|'friends'>('none')
+  const [isFriend, setIsFriend] = useState(false)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -44,7 +45,6 @@ export default function PublicProfilePage() {
 
       const decodedUsername = decodeURIComponent(username).replace('@', '').toLowerCase().trim()
 
-      // Try exact match first, then case-insensitive fallback for mobile
       let { data: p } = await supabase
         .from('profiles')
         .select('*')
@@ -63,6 +63,26 @@ export default function PublicProfilePage() {
       if (!p) { setLoading(false); return }
       setProfile(p)
 
+      const isOwnProfile = user?.id === p.id
+
+      // Check friendship status
+      let friendshipAccepted = false
+      if (user && !isOwnProfile) {
+        const { data: fs } = await supabase
+          .from('friendships')
+          .select('status')
+          .or(`and(sender_id.eq.${user.id},receiver_id.eq.${p.id}),and(sender_id.eq.${p.id},receiver_id.eq.${user.id})`)
+          .maybeSingle()
+        if (fs) {
+          friendshipAccepted = fs.status === 'accepted'
+          setFriendStatus(fs.status === 'accepted' ? 'friends' : 'pending')
+        }
+      }
+
+      if (isOwnProfile) friendshipAccepted = true
+      setIsFriend(friendshipAccepted)
+
+      // Friend count
       const { count: fc } = await supabase
         .from('friendships')
         .select('*', { count: 'exact', head: true })
@@ -70,8 +90,11 @@ export default function PublicProfilePage() {
         .eq('status', 'accepted')
       setFriendCount(fc || 0)
 
+      // Fetch posts — filter by is_public if not a friend or own profile
       const [{ data: ownPosts }, { data: mentionedPosts }] = await Promise.all([
-        supabase.from('workout_posts').select('*').eq('user_id', p.id).order('created_at', { ascending: false }),
+        friendshipAccepted
+          ? supabase.from('workout_posts').select('*').eq('user_id', p.id).order('created_at', { ascending: false })
+          : supabase.from('workout_posts').select('*').eq('user_id', p.id).eq('is_public', true).order('created_at', { ascending: false }),
         supabase.from('workout_posts').select('*').contains('mentions', [p.username]).order('created_at', { ascending: false }),
       ])
 
@@ -105,15 +128,6 @@ export default function PublicProfilePage() {
       }))
 
       setPosts(postsWithCounts as WorkoutPost[])
-
-      if (user && user.id !== p.id) {
-        const { data: fs } = await supabase
-          .from('friendships')
-          .select('status')
-          .or(`and(sender_id.eq.${user.id},receiver_id.eq.${p.id}),and(sender_id.eq.${p.id},receiver_id.eq.${user.id})`)
-          .maybeSingle()
-        if (fs) setFriendStatus(fs.status === 'accepted' ? 'friends' : 'pending')
-      }
       setLoading(false)
     }
     load()
@@ -231,6 +245,12 @@ export default function PublicProfilePage() {
             ))}
           </div>
         </div>
+
+        {!isFriend && !isOwnProfile && (
+          <div className="bg-surface-2 border border-border rounded-2xl px-4 py-4 text-center">
+            <p className="text-muted text-sm">Add this person as a friend to see their friends-only posts.</p>
+          </div>
+        )}
       </div>
 
       <div className="px-4 space-y-4 stagger">
@@ -241,7 +261,7 @@ export default function PublicProfilePage() {
         {posts.length === 0 ? (
           <div className="text-center py-10">
             <p className="text-4xl mb-3">🏋️</p>
-            <p className="text-muted text-sm">No workouts yet!</p>
+            <p className="text-muted text-sm">No public workouts yet!</p>
           </div>
         ) : (
           posts.map(post => <WorkoutCard key={post.id} post={post} currentUserId={currentUserId ?? undefined} />)
