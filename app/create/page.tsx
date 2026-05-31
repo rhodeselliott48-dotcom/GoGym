@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
-import { Camera, X, ArrowLeft, Plus, Trash2, Star, Info } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Star, Info } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -25,7 +25,7 @@ export default function CreatePage() {
   const searchParams = useSearchParams()
   const hasPhotos = searchParams.get('photos') === '1'
 
-  const [step, setStep] = useState(hasPhotos ? 3 : 1)
+  const [step, setStep] = useState(1)
   const [title, setTitle] = useState('')
   const [workoutType, setWorkoutType] = useState<WorkoutType | ''>('')
   const [sessionType, setSessionType] = useState<SessionType>('Solo')
@@ -38,22 +38,22 @@ export default function CreatePage() {
   const [groupName, setGroupName] = useState('')
   const [exercises, setExercises] = useState<Exercise[]>([emptyExercise()])
   const [caption, setCaption] = useState('')
-  const [photos, setPhotos] = useState<File[]>([])
-  const [previews, setPreviews] = useState<string[]>([])
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
 
-  // Pick up photos passed from BottomNav
+  // Pick up photo passed from BottomNav camera/library
   useEffect(() => {
     if (!hasPhotos) return
     function onPhotos(e: Event) {
       const files = (e as CustomEvent).detail.files as File[]
-      const toAdd = files.slice(0, 5)
-      setPhotos(toAdd)
-      setPreviews(toAdd.map(f => URL.createObjectURL(f)))
+      if (files[0]) {
+        setPhoto(files[0])
+        setPreview(URL.createObjectURL(files[0]))
+      }
     }
     window.addEventListener('gogym_photos', onPhotos)
     return () => window.removeEventListener('gogym_photos', onPhotos)
@@ -63,19 +63,6 @@ export default function CreatePage() {
   function removeExercise(i: number) { setExercises(prev => prev.filter((_, idx) => idx !== i)) }
   function updateExercise(i: number, field: keyof Exercise, value: any) {
     setExercises(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
-  }
-
-  function handlePhotos(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || [])
-    const remaining = 5 - photos.length
-    const toAdd = files.slice(0, remaining)
-    setPhotos(prev => [...prev, ...toAdd])
-    setPreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))])
-  }
-
-  function removePhoto(i: number) {
-    setPhotos(prev => prev.filter((_, idx) => idx !== i))
-    setPreviews(prev => prev.filter((_, idx) => idx !== i))
   }
 
   async function handleSubmit() {
@@ -89,7 +76,7 @@ export default function CreatePage() {
     if (!user) { router.push('/auth'); return }
 
     const photo_urls: string[] = []
-    for (const photo of photos) {
+    if (photo) {
       const ext = photo.name.split('.').pop()
       const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
       const { error: upErr } = await supabase.storage.from('workout-photos').upload(path, photo)
@@ -129,6 +116,11 @@ export default function CreatePage() {
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-nav">
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3">
+        {preview && (
+          <div className="w-8 h-8 rounded-lg overflow-hidden border border-border flex-shrink-0">
+            <img src={preview} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
         <Link href="/feed" className="text-muted hover:text-white press"><ArrowLeft size={20} /></Link>
         <h2 className="font-display text-2xl tracking-wide">Log Workout</h2>
         <div className="ml-auto flex items-center gap-1.5">
@@ -302,43 +294,30 @@ export default function CreatePage() {
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
-            <div>
-              <label className="field-label">Caption</label>
-              <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Talk your shit 💬" rows={3} maxLength={280} className="field-input resize-none" />
-              <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
-            </div>
-            <div>
-              <label className="field-label">Photos ({photos.length}/5)</label>
-              {previews.length > 0 && (
-                <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-                  {previews.map((p, i) => (
-                    <div key={i} className="relative flex-shrink-0">
-                      <img src={p} alt="" className="w-24 h-24 rounded-xl object-cover" />
-                      <button onClick={() => removePhoto(i)} className="absolute -top-1 -right-1 bg-black rounded-full p-0.5 press"><X size={14} /></button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {photos.length < 5 && (
-                <button onClick={() => fileRef.current?.click()}
-                  className="w-full py-4 border-2 border-dashed border-border rounded-2xl flex items-center justify-center gap-2 text-muted hover:border-brand/40 hover:text-brand/70 transition-all press">
-                  <Camera size={20} /><span className="text-sm font-medium">Add Photos</span>
-                </button>
-              )}
-              <input ref={fileRef} type="file" accept="image/*" multiple onChange={handlePhotos} className="hidden" />
-            </div>
 
-            {hasPhotos && photos.length === 0 && (
-              <div className="bg-surface-2 border border-border rounded-2xl px-4 py-3">
-                <p className="text-muted text-sm text-center">Photos didn't transfer — use the Add Photos button above.</p>
+            {/* Photo preview */}
+            {preview && (
+              <div className="relative rounded-2xl overflow-hidden border border-border">
+                <img src={preview} alt="" className="w-full h-48 object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                <div className="absolute bottom-2 left-2">
+                  <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full">📸 Photo attached</span>
+                </div>
               </div>
             )}
+
+            <div>
+              <label className="field-label">Caption</label>
+              <textarea value={caption} onChange={e => setCaption(e.target.value)}
+                placeholder="Talk your shit 💬" rows={3} maxLength={280} className="field-input resize-none" />
+              <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
+            </div>
 
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
 
             {(!workoutType || !mood) && (
               <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
-                <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 to pick a workout type and mood before posting.</p>
+                <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 to pick a workout type and mood.</p>
               </div>
             )}
 
