@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
-import { WorkoutPost, Comment, Exercise, WorkoutType, Mood, SessionType } from '@/lib/types'
+import { WorkoutPost, Comment, Exercise, WorkoutType, Mood } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 import BodyMap from '@/components/BodyMap'
 import { ArrowLeft, Heart, Star, MapPin, Send, Dumbbell, Trash2, Users, CornerDownRight, ChevronDown, ChevronUp, MoreVertical, Edit2, Check, Plus, Globe, Lock } from 'lucide-react'
@@ -33,6 +33,143 @@ interface CommentWithExtras extends Comment {
   user_has_liked: boolean
   replies: CommentWithExtras[]
   parent_id: string | null
+}
+
+// Standalone comment item — NOT inside the main component
+function CommentItem({
+  comment, isReply, currentUserId,
+  commentMenuId, setCommentMenuId,
+  editingCommentId, editingCommentText, setEditingCommentText,
+  onStartEdit, onSaveEdit, onDelete,
+  onToggleLike, onReply,
+}: {
+  comment: CommentWithExtras
+  isReply: boolean
+  currentUserId: string | null
+  commentMenuId: string | null
+  setCommentMenuId: (id: string | null) => void
+  editingCommentId: string | null
+  editingCommentText: string
+  setEditingCommentText: (t: string) => void
+  onStartEdit: (id: string, content: string) => void
+  onSaveEdit: (id: string) => void
+  onDelete: (id: string) => void
+  onToggleLike: (id: string, liked: boolean) => void
+  onReply: (id: string, username: string) => void
+}) {
+  const isOwnComment = currentUserId === comment.user_id
+  const isEditing = editingCommentId === comment.id
+  const menuOpen = commentMenuId === comment.id
+
+  return (
+    <div className={`flex gap-3 ${isReply ? 'ml-10 mt-2' : ''}`}>
+      <Link href={`/profile/${comment.profiles.username}`}>
+        <div className="w-8 h-8 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
+          {comment.profiles.avatar_url ? (
+            <img src={comment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-brand text-xs font-bold">
+              {comment.profiles.username[0].toUpperCase()}
+            </div>
+          )}
+        </div>
+      </Link>
+      <div className="flex-1">
+        <div className="bg-surface-2 rounded-2xl px-3 py-2 border border-border">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <span className="text-brand text-xs font-semibold">@{comment.profiles.username}</span>
+              <span className="text-muted text-xs">{timeAgo(comment.created_at)}</span>
+            </div>
+            {isOwnComment && (
+              <div className="relative">
+                <button
+                  onClick={e => { e.stopPropagation(); setCommentMenuId(menuOpen ? null : comment.id) }}
+                  className="text-muted press p-1">
+                  <MoreVertical size={13} />
+                </button>
+                {menuOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-1 bg-[#1a1a1a] border border-border rounded-xl overflow-hidden z-50 shadow-xl min-w-[120px]"
+                    onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => { onStartEdit(comment.id, comment.content); setCommentMenuId(null) }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-white hover:bg-surface-3 press">
+                      <Edit2 size={13} /> Edit
+                    </button>
+                    <button
+                      onClick={() => onDelete(comment.id)}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-surface-3 press">
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {isEditing ? (
+            <div className="space-y-2">
+              <textarea
+                value={editingCommentText}
+                onChange={e => setEditingCommentText(e.target.value)}
+                className="w-full bg-surface-3 border border-border rounded-xl px-3 py-2 text-white text-sm resize-none"
+                rows={2}
+                maxLength={200}
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onStartEdit('', '')}
+                  className="flex-1 py-1.5 text-xs text-muted border border-border rounded-lg press">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => onSaveEdit(comment.id)}
+                  className="flex-1 py-1.5 text-xs bg-brand text-white rounded-lg press">
+                  Save
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-white/80 text-sm">{comment.content}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-4 mt-1 px-1">
+          <button onClick={() => onToggleLike(comment.id, comment.user_has_liked)} className="flex items-center gap-1 press">
+            <Heart size={12} className={comment.user_has_liked ? 'fill-brand text-brand' : 'text-muted'} strokeWidth={comment.user_has_liked ? 0 : 1.8} />
+            {comment.likes_count > 0 && (
+              <span className={`text-xs font-semibold ${comment.user_has_liked ? 'text-brand' : 'text-muted'}`}>{comment.likes_count}</span>
+            )}
+          </button>
+          {!isReply && (
+            <button onClick={() => onReply(comment.id, comment.profiles.username)}
+              className="flex items-center gap-1 text-muted press hover:text-white">
+              <CornerDownRight size={12} />
+              <span className="text-xs">Reply</span>
+            </button>
+          )}
+        </div>
+        {comment.replies.map(reply => (
+          <CommentItem
+            key={reply.id}
+            comment={reply}
+            isReply={true}
+            currentUserId={currentUserId}
+            commentMenuId={commentMenuId}
+            setCommentMenuId={setCommentMenuId}
+            editingCommentId={editingCommentId}
+            editingCommentText={editingCommentText}
+            setEditingCommentText={setEditingCommentText}
+            onStartEdit={onStartEdit}
+            onSaveEdit={onSaveEdit}
+            onDelete={onDelete}
+            onToggleLike={onToggleLike}
+            onReply={onReply}
+          />
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function PostDetailPage() {
@@ -217,6 +354,7 @@ export default function PostDetailPage() {
     if (!editingCommentText.trim()) return
     await supabaseRef.current.from('comments').update({ content: editingCommentText.trim() }).eq('id', commentId)
     setEditingCommentId(null)
+    setEditingCommentText('')
     await loadComments(currentUserId)
   }
 
@@ -232,6 +370,11 @@ export default function PostDetailPage() {
     commentInputRef.current?.focus()
   }
 
+  function startEditComment(commentId: string, content: string) {
+    setEditingCommentId(commentId || null)
+    setEditingCommentText(content)
+  }
+
   function updateEditExercise(i: number, field: keyof Exercise, value: any) {
     setEditExercises(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
   }
@@ -243,6 +386,20 @@ export default function PostDetailPage() {
   const hasMentions = post?.mentions && post.mentions.length > 0
   const totalComments = comments.reduce((s, c) => s + 1 + c.replies.length, 0)
   const isStaircasterOrTreadmill = editWorkoutType === 'Stairmaster' || editWorkoutType === 'Treadmill'
+
+  const commentItemProps = {
+    currentUserId,
+    commentMenuId,
+    setCommentMenuId,
+    editingCommentId,
+    editingCommentText,
+    setEditingCommentText,
+    onStartEdit: startEditComment,
+    onSaveEdit: saveCommentEdit,
+    onDelete: deleteComment,
+    onToggleLike: toggleCommentLike,
+    onReply: startReply,
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f0f0f] flex items-center justify-center">
@@ -258,94 +415,7 @@ export default function PostDetailPage() {
 
   const isOwnPost = currentUserId === post.user_id
 
-  const CommentItem = ({ comment, isReply = false }: { comment: CommentWithExtras, isReply?: boolean }) => {
-    const isOwnComment = currentUserId === comment.user_id
-    const isEditing = editingCommentId === comment.id
-    const menuOpen = commentMenuId === comment.id
-
-    return (
-      <div className={`flex gap-3 ${isReply ? 'ml-10 mt-2' : ''}`}>
-        <Link href={`/profile/${comment.profiles.username}`}>
-          <div className="w-8 h-8 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
-            {comment.profiles.avatar_url ? (
-              <img src={comment.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-brand text-xs font-bold">
-                {comment.profiles.username[0].toUpperCase()}
-              </div>
-            )}
-          </div>
-        </Link>
-        <div className="flex-1">
-          <div className="bg-surface-2 rounded-2xl px-3 py-2 border border-border">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-brand text-xs font-semibold">@{comment.profiles.username}</span>
-                <span className="text-muted text-xs">{timeAgo(comment.created_at)}</span>
-              </div>
-              {isOwnComment && (
-                <div className="relative">
-                  <button
-                    onClick={e => { e.stopPropagation(); setCommentMenuId(menuOpen ? null : comment.id) }}
-                    className="text-muted press p-1">
-                    <MoreVertical size={13} />
-                  </button>
-                  {menuOpen && (
-                    <div
-                      className="absolute right-0 top-full mt-1 bg-[#1a1a1a] border border-border rounded-xl overflow-hidden z-50 shadow-xl min-w-[120px]"
-                      onClick={e => e.stopPropagation()}>
-                      <button onClick={() => {
-                        setEditingCommentId(comment.id)
-                        setEditingCommentText(comment.content)
-                        setCommentMenuId(null)
-                      }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-white hover:bg-surface-3 press">
-                        <Edit2 size={13} /> Edit
-                      </button>
-                      <button onClick={() => deleteComment(comment.id)}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-surface-3 press">
-                        <Trash2 size={13} /> Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            {isEditing ? (
-              <div className="space-y-2">
-                <textarea value={editingCommentText} onChange={e => setEditingCommentText(e.target.value)}
-                  className="w-full bg-surface-3 border border-border rounded-xl px-3 py-2 text-white text-sm resize-none"
-                  rows={2} maxLength={200} />
-                <div className="flex gap-2">
-                  <button onClick={() => setEditingCommentId(null)}
-                    className="flex-1 py-1.5 text-xs text-muted border border-border rounded-lg press">Cancel</button>
-                  <button onClick={() => saveCommentEdit(comment.id)}
-                    className="flex-1 py-1.5 text-xs bg-brand text-white rounded-lg press">Save</button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-white/80 text-sm">{comment.content}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-4 mt-1 px-1">
-            <button onClick={() => toggleCommentLike(comment.id, comment.user_has_liked)} className="flex items-center gap-1 press">
-              <Heart size={12} className={comment.user_has_liked ? 'fill-brand text-brand' : 'text-muted'} strokeWidth={comment.user_has_liked ? 0 : 1.8} />
-              {comment.likes_count > 0 && <span className={`text-xs font-semibold ${comment.user_has_liked ? 'text-brand' : 'text-muted'}`}>{comment.likes_count}</span>}
-            </button>
-            {!isReply && (
-              <button onClick={() => startReply(comment.id, comment.profiles.username)}
-                className="flex items-center gap-1 text-muted press hover:text-white">
-                <CornerDownRight size={12} />
-                <span className="text-xs">Reply</span>
-              </button>
-            )}
-          </div>
-          {comment.replies.map(reply => <CommentItem key={reply.id} comment={reply} isReply />)}
-        </div>
-      </div>
-    )
-  }
-
-  // EDIT MODE — full form
+  // EDIT MODE
   if (editingPost) {
     return (
       <div className="min-h-screen bg-[#0f0f0f] pb-nav">
@@ -359,8 +429,6 @@ export default function PostDetailPage() {
         </header>
 
         <div className="px-4 py-6 space-y-5">
-
-          {/* Visibility */}
           <div className="flex gap-2">
             <button onClick={() => setEditIsPublic(true)}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
@@ -374,13 +442,11 @@ export default function PostDetailPage() {
             </button>
           </div>
 
-          {/* Title */}
           <div>
             <label className="field-label">Workout Title *</label>
             <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="field-input" />
           </div>
 
-          {/* Workout Type */}
           <div>
             <label className="field-label">Workout Type</label>
             <div className="relative">
@@ -404,7 +470,6 @@ export default function PostDetailPage() {
             </div>
           </div>
 
-          {/* Mood */}
           <div>
             <label className="field-label">Mood</label>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -418,7 +483,6 @@ export default function PostDetailPage() {
             </div>
           </div>
 
-          {/* Duration + City */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="field-label">Duration (mins)</label>
@@ -430,13 +494,11 @@ export default function PostDetailPage() {
             </div>
           </div>
 
-          {/* Gym location */}
           <div>
             <label className="field-label">Gym / Location</label>
             <input value={editGymLocation} onChange={e => setEditGymLocation(e.target.value)} placeholder="e.g. LA Fitness" className="field-input" />
           </div>
 
-          {/* Exercises */}
           <div>
             <label className="field-label">Exercises</label>
             <div className="space-y-3">
@@ -455,7 +517,6 @@ export default function PostDetailPage() {
                         className="p-2 text-muted hover:text-red-400 press"><Trash2 size={16} /></button>
                     )}
                   </div>
-
                   {isStaircasterOrTreadmill ? (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -491,7 +552,6 @@ export default function PostDetailPage() {
                       </div>
                     </div>
                   )}
-
                   <button onClick={() => setEditExpandedNotes(prev => ({ ...prev, [i]: !prev[i] }))}
                     className="flex items-center gap-1.5 text-muted text-xs font-semibold press hover:text-white">
                     {editExpandedNotes[i] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -511,12 +571,10 @@ export default function PostDetailPage() {
             </button>
           </div>
 
-          {/* Caption */}
           <div>
             <label className="field-label">Caption</label>
             <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)}
-              rows={3} maxLength={280}
-              className="field-input resize-none" />
+              rows={3} maxLength={280} className="field-input resize-none" />
             <p className="text-muted text-xs text-right mt-1">{editCaption.length}/280</p>
           </div>
 
@@ -767,7 +825,9 @@ export default function PostDetailPage() {
               <p className="text-muted text-sm text-center py-4">No comments yet. Be the first!</p>
             )}
             <div className="space-y-4 mb-4">
-              {comments.map(c => <CommentItem key={c.id} comment={c} />)}
+              {comments.map(c => (
+                <CommentItem key={c.id} comment={c} isReply={false} {...commentItemProps} />
+              ))}
             </div>
 
             {replyingTo && (
