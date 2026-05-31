@@ -1,5 +1,5 @@
 export type WorkoutType = 'Push' | 'Pull' | 'Upper' | 'Lower' | 'Legs' | 'Full Body' | 'Cardio' | 'HIIT' | 'Mobility' | 'Stairmaster' | 'Treadmill' | 'Other'
-export type Mood = '🔥 On Fire' | '💪 Strong' | '😤 Grind' | '😴 Tired' | '😊 Good'
+export type Mood = '🔥 Locked In' | '😴 Tired' | '😊 Great' | '🔥 On Fire' | '💪 Strong' | '💀 Dead Inside'
 export type SessionType = 'Solo' | 'Joint' | 'Group' | 'Live'
 export type FavSplit = 'PPL' | 'Bro Split' | 'Upper/Lower' | '5/3/1' | 'Full Body' | 'PHUL' | 'Other'
 
@@ -9,6 +9,7 @@ export interface Exercise {
   reps: string
   weight: string
   is_pr: boolean
+  notes?: string
   description?: string
 }
 
@@ -31,7 +32,7 @@ export interface WorkoutPost {
   title: string
   caption: string
   workout_type: WorkoutType
-  mood: Mood
+  mood: Mood | null
   session_type: SessionType
   photo_urls: string[]
   exercises: Exercise[]
@@ -64,4 +65,13 @@ export interface FriendRequest {
   status: 'pending' | 'accepted' | 'declined'
   created_at: string
   profiles?: Profile
+}
+
+export interface PresetWorkout {
+  id: string
+  user_id: string
+  name: string
+  workout_type: WorkoutType
+  exercises: Exercise[]
+  created_at: string
 }

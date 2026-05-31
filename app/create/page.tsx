@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
-import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe, ChevronDown, ChevronUp, Save } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -12,17 +12,20 @@ const WORKOUT_TYPES: WorkoutType[] = [
   'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
   'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
 ]
-const MOODS: Mood[] = ['🔥 On Fire', '💪 Strong', '😤 Grind', '😴 Tired', '😊 Good']
+const MOODS: Mood[] = ['🔥 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
 const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
   { value: 'Solo',  label: '🧍 Solo',         desc: 'Just you grinding' },
   { value: 'Joint', label: '👥 Joint Session', desc: 'With 1 workout partner' },
   { value: 'Group', label: '🏟️ Group Session', desc: 'Squad workout (2+ people)' },
   { value: 'Live',  label: '📡 Live Session',  desc: 'Coming soon' },
 ]
+const CARDIO_TYPES: WorkoutType[] = ['Stairmaster', 'Treadmill', 'Cardio', 'HIIT']
 const SET_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20','25','30','AMRAP','Failure']
+const INCLINE_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15']
+const SPEED_OPTIONS = ['1.0','2.0','2.5','3.0','3.5','4.0','4.5','5.0','5.5','6.0','6.5','7.0','8.0','9.0','10.0']
 
-function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', weight: '', is_pr: false } }
+function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', weight: '', is_pr: false, notes: '' } }
 
 function CreateForm() {
   const searchParams = useSearchParams()
@@ -41,14 +44,23 @@ function CreateForm() {
   const [groupMembers, setGroupMembers] = useState('')
   const [groupName, setGroupName] = useState('')
   const [exercises, setExercises] = useState<Exercise[]>([emptyExercise()])
+  const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>({})
   const [caption, setCaption] = useState('')
   const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [isPublic, setIsPublic] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showPresetSave, setShowPresetSave] = useState(false)
+  const [presetName, setPresetName] = useState('')
+  const [presets, setPresets] = useState<any[]>([])
+  const [showPresets, setShowPresets] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  const isCardio = CARDIO_TYPES.includes(workoutType as WorkoutType)
+  const isStaircasterOrTreadmill = workoutType === 'Stairmaster' || workoutType === 'Treadmill'
 
   useEffect(() => {
     if (!hasPhotos) return
@@ -63,17 +75,62 @@ function CreateForm() {
     return () => window.removeEventListener('gogym_photos', onPhotos)
   }, [hasPhotos])
 
+  useEffect(() => {
+    loadPresets()
+  }, [])
+
+  async function loadPresets() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase
+      .from('preset_workouts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    if (data) setPresets(data)
+  }
+
   function addExercise() { setExercises(prev => [...prev, emptyExercise()]) }
-  function removeExercise(i: number) { setExercises(prev => prev.filter((_, idx) => idx !== i)) }
+  function removeExercise(i: number) {
+    setExercises(prev => prev.filter((_, idx) => idx !== i))
+    setExpandedNotes(prev => {
+      const next = { ...prev }
+      delete next[i]
+      return next
+    })
+  }
   function updateExercise(i: number, field: keyof Exercise, value: any) {
     setExercises(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
   }
+  function toggleNotes(i: number) {
+    setExpandedNotes(prev => ({ ...prev, [i]: !prev[i] }))
+  }
+
+  function loadPreset(preset: any) {
+    setWorkoutType(preset.workout_type)
+    setExercises(preset.exercises)
+    setShowPresets(false)
+  }
+
+  async function savePreset() {
+    if (!presetName.trim() || exercises.length === 0) return
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSaving(false); return }
+    await supabase.from('preset_workouts').insert({
+      user_id: user.id,
+      name: presetName.trim(),
+      workout_type: workoutType || 'Other',
+      exercises,
+    })
+    setPresetName('')
+    setShowPresetSave(false)
+    setSaving(false)
+    await loadPresets()
+  }
 
   async function handleSubmit() {
-    if (!workoutType || !mood) { setError('Please complete all required fields'); return }
-    if (sessionType === 'Joint' && !jointPartner.trim()) {
-      setError('Joint session requires 1 partner username'); return
-    }
+    if (!title.trim()) { setError('Please add a workout title'); return }
     setLoading(true); setError('')
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -101,8 +158,8 @@ function CreateForm() {
       user_id: user.id,
       title,
       caption,
-      workout_type: workoutType,
-      mood,
+      workout_type: workoutType || 'Other',
+      mood: mood || null,
       session_type: sessionType,
       photo_urls,
       exercises,
@@ -115,7 +172,8 @@ function CreateForm() {
     })
 
     if (postError) { setError('Post failed: ' + postError.message); setLoading(false); return }
-    router.push('/feed')
+    setLoading(false)
+    setShowPresetSave(true)
   }
 
   return (
@@ -128,7 +186,13 @@ function CreateForm() {
         )}
         <Link href="/feed" className="text-muted hover:text-white press"><ArrowLeft size={20} /></Link>
         <h2 className="font-display text-2xl tracking-wide">Log Workout</h2>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-2">
+          {presets.length > 0 && (
+            <button onClick={() => setShowPresets(!showPresets)}
+              className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-xl press">
+              Presets
+            </button>
+          )}
           {[1,2,3].map(s => (
             <button key={s} onClick={() => setStep(s)}
               className={`w-7 h-7 rounded-full text-xs font-bold transition-all press
@@ -139,6 +203,20 @@ function CreateForm() {
         </div>
       </header>
 
+      {/* Presets dropdown */}
+      {showPresets && (
+        <div className="mx-4 mt-2 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden shadow-xl">
+          <p className="text-xs text-muted uppercase tracking-widest font-semibold px-4 py-3 border-b border-border">Your Presets</p>
+          {presets.map(p => (
+            <button key={p.id} onClick={() => loadPreset(p)}
+              className="w-full text-left px-4 py-3 border-b border-border/50 last:border-0 press hover:bg-surface-3">
+              <p className="text-white font-semibold text-sm">{p.name}</p>
+              <p className="text-muted text-xs">{p.workout_type} · {p.exercises.length} exercises</p>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="px-4 py-6 space-y-6">
 
         {/* STEP 1 */}
@@ -146,7 +224,6 @@ function CreateForm() {
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
 
-            {/* Public / Friends Only toggle */}
             <div className="flex gap-2">
               <button onClick={() => setIsPublic(true)}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
@@ -159,18 +236,14 @@ function CreateForm() {
                 <Lock size={15} /> Friends Only
               </button>
             </div>
-            {!isPublic && (
-              <p className="text-muted text-xs -mt-2 px-1">Only your friends will see this workout</p>
-            )}
 
             <div>
-              <label className="field-label">Workout Title</label>
+              <label className="field-label">Workout Title *</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete 💪" className="field-input" />
             </div>
 
-            {/* Workout Type Dropdown */}
             <div>
-              <label className="field-label">Workout Type *</label>
+              <label className="field-label">Workout Type</label>
               <div className="relative">
                 <button onClick={() => setWorkoutDropdownOpen(!workoutDropdownOpen)}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-all press
@@ -215,7 +288,6 @@ function CreateForm() {
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-2">
                 <label className="field-label">Partner Username (1 only)</label>
                 <input value={jointPartner} onChange={e => setJointPartner(e.target.value.replace('@', ''))} placeholder="@username" className="field-input" />
-                <p className="text-muted text-xs">Joint sessions are limited to 1 workout partner</p>
               </div>
             )}
             {sessionType === 'Group' && (
@@ -232,10 +304,10 @@ function CreateForm() {
             )}
 
             <div>
-              <label className="field-label">How are you feeling? *</label>
+              <label className="field-label">Mood</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {MOODS.map(m => (
-                  <button key={m} type="button" onClick={() => setMood(m)}
+                  <button key={m} type="button" onClick={() => setMood(mood === m ? '' : m)}
                     className={`flex-shrink-0 px-3 py-2.5 rounded-xl text-sm font-medium transition-all press border
                       ${mood === m ? 'bg-brand text-white border-brand' : 'bg-surface-2 text-white/80 border-border'}`}>
                     {m}
@@ -267,15 +339,21 @@ function CreateForm() {
         {/* STEP 2 */}
         {step === 2 && (
           <div className="space-y-4 animate-fade-up">
-            <SectionLabel>Exercises</SectionLabel>
+            <SectionLabel>
+              {isStaircasterOrTreadmill ? `${workoutType} Session` : 'Exercises'}
+            </SectionLabel>
+
             {exercises.map((ex, i) => {
               const info = ex.name ? findExercise(ex.name) : null
+              const notesOpen = expandedNotes[i] || false
               return (
                 <div key={i} className="bg-surface-2 rounded-2xl border border-border overflow-hidden">
                   <div className="p-4 space-y-3">
                     <div className="flex items-center gap-2">
                       <span className="text-brand font-display text-lg w-6">{i+1}</span>
-                      <input value={ex.name} onChange={e => updateExercise(i, 'name', e.target.value)} placeholder="Exercise name..." className="flex-1 field-input" />
+                      <input value={ex.name} onChange={e => updateExercise(i, 'name', e.target.value)}
+                        placeholder={isStaircasterOrTreadmill ? `e.g. ${workoutType} interval ${i+1}` : 'Exercise name...'}
+                        className="flex-1 field-input" />
                       <button onClick={() => updateExercise(i, 'is_pr', !ex.is_pr)}
                         className={`p-2 rounded-xl border press transition-all ${ex.is_pr ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400' : 'bg-surface-3 border-border text-muted'}`}>
                         <Star size={16} className={ex.is_pr ? 'fill-yellow-400' : ''} />
@@ -284,44 +362,82 @@ function CreateForm() {
                         <button onClick={() => removeExercise(i)} className="p-2 text-muted hover:text-red-400 press"><Trash2 size={16} /></button>
                       )}
                     </div>
+
                     {info && (
                       <div className="flex items-start gap-2 bg-surface-3 rounded-xl px-3 py-2 border border-border">
                         <Info size={12} className="text-brand mt-0.5 flex-shrink-0" />
                         <p className="text-xs text-light-gray/60 leading-relaxed">{info.description}</p>
                       </div>
                     )}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="field-label">Sets</label>
-                        <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
-                          {SET_OPTIONS.map(n => <option key={n} value={n}>{n} sets</option>)}
-                        </select>
+
+                    {/* Stairmaster/Treadmill: incline + speed instead of sets/reps */}
+                    {isStaircasterOrTreadmill ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="field-label">Incline / Setting</label>
+                          <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
+                            {INCLINE_OPTIONS.map(n => <option key={n} value={n}>Level {n}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="field-label">Speed (mph)</label>
+                          <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
+                            {SPEED_OPTIONS.map(s => <option key={s} value={s}>{s} mph</option>)}
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label className="field-label">Reps</label>
-                        <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
-                          {REP_OPTIONS.map(r => <option key={r} value={r}>{r} reps</option>)}
-                        </select>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="field-label">Sets</label>
+                          <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
+                            {SET_OPTIONS.map(n => <option key={n} value={n}>{n} sets</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="field-label">Reps</label>
+                          <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
+                            {REP_OPTIONS.map(r => <option key={r} value={r}>{r} reps</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="field-label">Weight (lbs)</label>
+                          <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)} placeholder="135" className="field-input" />
+                        </div>
                       </div>
-                      <div>
-                        <label className="field-label">Weight (lbs)</label>
-                        <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)} placeholder="135" className="field-input" />
-                      </div>
-                    </div>
+                    )}
+
                     {ex.is_pr && (
                       <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-2">
                         <Star size={12} className="text-yellow-400 fill-yellow-400" />
                         <p className="text-yellow-400 text-xs font-semibold">Personal Record! 🏆</p>
                       </div>
                     )}
+
+                    {/* Collapsible notes */}
+                    <button onClick={() => toggleNotes(i)}
+                      className="flex items-center gap-1.5 text-muted text-xs font-semibold press hover:text-white transition-colors">
+                      {notesOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      {notesOpen ? 'Hide set notes' : 'Add set notes'}
+                    </button>
+                    {notesOpen && (
+                      <textarea value={ex.notes || ''} onChange={e => updateExercise(i, 'notes', e.target.value)}
+                        placeholder="e.g. felt heavy on set 2, rest 90s between sets..."
+                        rows={2} maxLength={200}
+                        className="field-input resize-none text-xs" />
+                    )}
                   </div>
                 </div>
               )
             })}
+
             <button onClick={addExercise}
               className="w-full py-3 rounded-2xl border-2 border-dashed border-border text-muted flex items-center justify-center gap-2 hover:border-brand/40 hover:text-brand/70 transition-all press">
-              <Plus size={18} /><span className="font-semibold text-sm">Add Exercise</span>
+              <Plus size={18} /><span className="font-semibold text-sm">
+                {isStaircasterOrTreadmill ? 'Add Interval' : 'Add Exercise'}
+              </span>
             </button>
+
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(1)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={() => setStep(3)} className="bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">NEXT →</button>
@@ -352,18 +468,18 @@ function CreateForm() {
             <div>
               <label className="field-label">Caption</label>
               <textarea value={caption} onChange={e => setCaption(e.target.value)}
-                placeholder="Talk your shit 💬" rows={3} maxLength={280} className="field-input resize-none" />
+                placeholder="Write your thoughts down..." rows={3} maxLength={280} className="field-input resize-none" />
               <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
             </div>
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
-            {(!workoutType || !mood) && (
+            {!title.trim() && (
               <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
-                <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 to pick a workout type and mood.</p>
+                <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 and add a workout title.</p>
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
-              <button onClick={handleSubmit} disabled={loading || !workoutType || !mood}
+              <button onClick={handleSubmit} disabled={loading || !title.trim()}
                 className="bg-brand text-white font-display text-xl py-4 rounded-2xl press disabled:opacity-40 shadow-lg shadow-brand/20 tracking-wide">
                 {loading ? 'POSTING...' : 'POST IT 🔥'}
               </button>
@@ -371,6 +487,32 @@ function CreateForm() {
           </div>
         )}
       </div>
+
+      {/* Save as preset modal */}
+      {showPresetSave && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={() => { setShowPresetSave(false); router.push('/feed') }}>
+          <div className="w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl p-6 pb-10 animate-slide-up"
+            onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
+            <p className="font-display text-2xl text-white mb-1">Post saved! 🔥</p>
+            <p className="text-muted text-sm mb-5">Want to save this as a preset workout?</p>
+            <input value={presetName} onChange={e => setPresetName(e.target.value)}
+              placeholder="e.g. My Push Day"
+              className="field-input mb-3" />
+            <div className="flex gap-3">
+              <button onClick={() => { setShowPresetSave(false); router.push('/feed') }}
+                className="flex-1 py-3 rounded-2xl border border-border text-muted font-semibold press">
+                Skip
+              </button>
+              <button onClick={async () => { await savePreset(); router.push('/feed') }}
+                disabled={saving || !presetName.trim()}
+                className="flex-1 py-3 rounded-2xl bg-brand text-white font-semibold press disabled:opacity-40 flex items-center justify-center gap-2">
+                <Save size={16} /> Save Preset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         .field-label { display: block; font-size: 0.65rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 0.375rem; }
