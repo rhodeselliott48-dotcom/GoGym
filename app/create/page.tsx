@@ -56,12 +56,13 @@ function CreateForm() {
   const [presetName, setPresetName] = useState('')
   const [presets, setPresets] = useState<any[]>([])
   const [showPresets, setShowPresets] = useState(false)
+  const [draftSaved, setDraftSaved] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
-  const isCardio = CARDIO_TYPES.includes(workoutType as WorkoutType)
   const isStaircasterOrTreadmill = workoutType === 'Stairmaster' || workoutType === 'Treadmill'
 
+  // Pick up photos from BottomNav
   useEffect(() => {
     if (!hasPhotos) return
     function onPhotos(e: Event) {
@@ -75,9 +76,49 @@ function CreateForm() {
     return () => window.removeEventListener('gogym_photos', onPhotos)
   }, [hasPhotos])
 
+  // Load draft on mount
   useEffect(() => {
+    async function loadDraft() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('post_drafts')
+        .select('data')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (data?.data) {
+        const d = data.data
+        if (d.title) setTitle(d.title)
+        if (d.workoutType) setWorkoutType(d.workoutType)
+        if (d.mood) setMood(d.mood)
+        if (d.duration) setDuration(d.duration)
+        if (d.gymLocation) setGymLocation(d.gymLocation)
+        if (d.city) setCity(d.city)
+        if (d.exercises?.length) setExercises(d.exercises)
+        if (d.caption) setCaption(d.caption)
+        if (typeof d.isPublic === 'boolean') setIsPublic(d.isPublic)
+        if (d.sessionType) setSessionType(d.sessionType)
+      }
+    }
+    loadDraft()
     loadPresets()
   }, [])
+
+  // Auto-save draft every 2 seconds when title exists
+  useEffect(() => {
+    if (!title) return
+    const timer = setTimeout(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      await supabase.from('post_drafts').upsert(
+        { user_id: user.id, data: { title, workoutType, mood, duration, gymLocation, city, exercises, caption, isPublic, sessionType } },
+        { onConflict: 'user_id' }
+      )
+      setDraftSaved(true)
+      setTimeout(() => setDraftSaved(false), 2000)
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [title, workoutType, mood, duration, gymLocation, city, exercises, caption, isPublic, sessionType])
 
   async function loadPresets() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -93,11 +134,7 @@ function CreateForm() {
   function addExercise() { setExercises(prev => [...prev, emptyExercise()]) }
   function removeExercise(i: number) {
     setExercises(prev => prev.filter((_, idx) => idx !== i))
-    setExpandedNotes(prev => {
-      const next = { ...prev }
-      delete next[i]
-      return next
-    })
+    setExpandedNotes(prev => { const next = { ...prev }; delete next[i]; return next })
   }
   function updateExercise(i: number, field: keyof Exercise, value: any) {
     setExercises(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
@@ -172,6 +209,10 @@ function CreateForm() {
     })
 
     if (postError) { setError('Post failed: ' + postError.message); setLoading(false); return }
+
+    // Clear draft after posting
+    await supabase.from('post_drafts').delete().eq('user_id', user.id)
+
     setLoading(false)
     setShowPresetSave(true)
   }
@@ -185,8 +226,11 @@ function CreateForm() {
           </div>
         )}
         <Link href="/feed" className="text-muted hover:text-white press"><ArrowLeft size={20} /></Link>
-        <h2 className="font-display text-2xl tracking-wide">Log Workout</h2>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex-1">
+          <h2 className="font-display text-2xl tracking-wide">Log Workout</h2>
+          {draftSaved && <p className="text-muted text-[10px]">Draft saved</p>}
+        </div>
+        <div className="flex items-center gap-2">
           {presets.length > 0 && (
             <button onClick={() => setShowPresets(!showPresets)}
               className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-xl press">
@@ -370,7 +414,6 @@ function CreateForm() {
                       </div>
                     )}
 
-                    {/* Stairmaster/Treadmill: incline + speed instead of sets/reps */}
                     {isStaircasterOrTreadmill ? (
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -414,7 +457,6 @@ function CreateForm() {
                       </div>
                     )}
 
-                    {/* Collapsible notes */}
                     <button onClick={() => toggleNotes(i)}
                       className="flex items-center gap-1.5 text-muted text-xs font-semibold press hover:text-white transition-colors">
                       {notesOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
