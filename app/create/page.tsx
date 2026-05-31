@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
@@ -21,7 +21,7 @@ const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20
 
 function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', weight: '', is_pr: false } }
 
-export default function CreatePage() {
+function CreateForm() {
   const searchParams = useSearchParams()
   const hasPhotos = searchParams.get('photos') === '1'
 
@@ -45,7 +45,6 @@ export default function CreatePage() {
   const router = useRouter()
   const supabase = createClient()
 
-  // Pick up photo passed from BottomNav camera/library
   useEffect(() => {
     if (!hasPhotos) return
     function onPhotos(e: Event) {
@@ -135,8 +134,6 @@ export default function CreatePage() {
       </header>
 
       <div className="px-4 py-6 space-y-6">
-
-        {/* STEP 1 */}
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
@@ -225,7 +222,6 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* STEP 2 */}
         {step === 2 && (
           <div className="space-y-4 animate-fade-up">
             <SectionLabel>Exercises</SectionLabel>
@@ -290,12 +286,9 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* STEP 3 */}
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
-
-            {/* Photo preview */}
             {preview && (
               <div className="relative rounded-2xl overflow-hidden border border-border">
                 <img src={preview} alt="" className="w-full h-48 object-cover" />
@@ -305,22 +298,18 @@ export default function CreatePage() {
                 </div>
               </div>
             )}
-
             <div>
               <label className="field-label">Caption</label>
               <textarea value={caption} onChange={e => setCaption(e.target.value)}
                 placeholder="Talk your shit 💬" rows={3} maxLength={280} className="field-input resize-none" />
               <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
             </div>
-
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
-
             {(!workoutType || !mood) && (
               <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
                 <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 to pick a workout type and mood.</p>
               </div>
             )}
-
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !workoutType || !mood}
@@ -349,5 +338,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       <div className="w-1 h-5 bg-brand rounded-full" />
       <h3 className="font-display text-xl tracking-wide text-white">{children}</h3>
     </div>
+  )
+}
+
+export default function CreatePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0f0f0f]" />}>
+      <CreateForm />
+    </Suspense>
   )
 }
