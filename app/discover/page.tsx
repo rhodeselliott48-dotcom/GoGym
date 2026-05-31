@@ -46,6 +46,7 @@ export default function DiscoverPage() {
       let query = supabase
         .from('workout_posts')
         .select('*')
+        .eq('is_public', true)
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -58,11 +59,14 @@ export default function DiscoverPage() {
 
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((p: any) => p.user_id))]
-        const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds)
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('id', userIds)
+
         const profilesMap: Record<string, any> = {}
         if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
-        // Fetch likes and comments
         const withCounts = await Promise.all(data.map(async (post: any) => {
           const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
             supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
@@ -74,7 +78,7 @@ export default function DiscoverPage() {
             profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
             likes_count: likes || 0,
             comments_count: comments || 0,
-            user_has_liked: !!likedRes.data,
+            user_has_liked: !!likedRes?.data,
           }
         }))
 
