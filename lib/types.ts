@@ -1,4 +1,4 @@
-export type WorkoutType = 'Push' | 'Pull' | 'Legs' | 'Full Body' | 'Cardio' | 'HIIT' | 'Mobility' | 'Other'
+export type WorkoutType = 'Push' | 'Pull' | 'Upper' | 'Lower' | 'Legs' | 'Full Body' | 'Cardio' | 'HIIT' | 'Mobility' | 'Stairmaster' | 'Treadmill' | 'Other'
 export type Mood = '🔥 On Fire' | '💪 Strong' | '😤 Grind' | '😴 Tired' | '😊 Good'
 export type SessionType = 'Solo' | 'Joint' | 'Group' | 'Live'
 export type FavSplit = 'PPL' | 'Bro Split' | 'Upper/Lower' | '5/3/1' | 'Full Body' | 'PHUL' | 'Other'
@@ -40,6 +40,7 @@ export interface WorkoutPost {
   city: string | null
   mentions: string[]
   group_name: string | null
+  is_public: boolean
   created_at: string
   profiles: Profile
   likes_count?: number

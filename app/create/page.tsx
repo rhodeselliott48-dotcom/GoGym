@@ -4,11 +4,14 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
-import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
-const WORKOUT_TYPES: WorkoutType[] = ['Push', 'Pull', 'Legs', 'Full Body', 'Cardio', 'HIIT', 'Mobility', 'Other']
+const WORKOUT_TYPES: WorkoutType[] = [
+  'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
+  'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
+]
 const MOODS: Mood[] = ['🔥 On Fire', '💪 Strong', '😤 Grind', '😴 Tired', '😊 Good']
 const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
   { value: 'Solo',  label: '🧍 Solo',         desc: 'Just you grinding' },
@@ -28,6 +31,7 @@ function CreateForm() {
   const [step, setStep] = useState(1)
   const [title, setTitle] = useState('')
   const [workoutType, setWorkoutType] = useState<WorkoutType | ''>('')
+  const [workoutDropdownOpen, setWorkoutDropdownOpen] = useState(false)
   const [sessionType, setSessionType] = useState<SessionType>('Solo')
   const [mood, setMood] = useState<Mood | ''>('')
   const [duration, setDuration] = useState('')
@@ -163,18 +167,31 @@ function CreateForm() {
               <label className="field-label">Workout Title</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete 💪" className="field-input" />
             </div>
+
+            {/* Workout Type Dropdown */}
             <div>
               <label className="field-label">Workout Type *</label>
-              <div className="grid grid-cols-4 gap-2">
-                {WORKOUT_TYPES.map(type => (
-                  <button key={type} type="button" onClick={() => setWorkoutType(type)}
-                    className={`py-2.5 rounded-xl text-sm font-semibold transition-all press border
-                      ${workoutType === type ? 'bg-brand text-white border-brand shadow-lg shadow-brand/20' : 'bg-surface-2 text-white/70 border-border'}`}>
-                    {type}
-                  </button>
-                ))}
+              <div className="relative">
+                <button onClick={() => setWorkoutDropdownOpen(!workoutDropdownOpen)}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-all press
+                    ${workoutType ? 'bg-brand/10 border-brand text-white' : 'bg-surface-2 border-border text-muted'}`}>
+                  {workoutType || 'Select workout type...'}
+                  <ChevronDown size={16} className={`transition-transform ${workoutDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {workoutDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden z-50 shadow-xl">
+                    {WORKOUT_TYPES.map(type => (
+                      <button key={type} onClick={() => { setWorkoutType(type); setWorkoutDropdownOpen(false) }}
+                        className={`w-full text-left px-4 py-3 text-sm transition-all press border-b border-border/50 last:border-0
+                          ${workoutType === type ? 'bg-brand text-white font-semibold' : 'text-white/70 hover:bg-surface-3'}`}>
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
+
             <div>
               <label className="field-label">Session Type</label>
               <div className="space-y-2">
@@ -193,6 +210,7 @@ function CreateForm() {
                 ))}
               </div>
             </div>
+
             {sessionType === 'Joint' && (
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-2">
                 <label className="field-label">Partner Username (1 only)</label>
@@ -212,6 +230,7 @@ function CreateForm() {
                 </div>
               </div>
             )}
+
             <div>
               <label className="field-label">How are you feeling? *</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -224,6 +243,7 @@ function CreateForm() {
                 ))}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Duration (mins)</label>
@@ -313,7 +333,6 @@ function CreateForm() {
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
-
             {preview && (
               <div className="relative rounded-2xl overflow-hidden border border-border">
                 <img src={preview} alt="" className="w-full h-48 object-cover" />
@@ -324,29 +343,24 @@ function CreateForm() {
                 </div>
               </div>
             )}
-
             {!preview && !isPublic && (
               <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-xl px-4 py-3">
                 <Lock size={14} className="text-muted" />
                 <p className="text-muted text-sm">Friends Only post</p>
               </div>
             )}
-
             <div>
               <label className="field-label">Caption</label>
               <textarea value={caption} onChange={e => setCaption(e.target.value)}
                 placeholder="Talk your shit 💬" rows={3} maxLength={280} className="field-input resize-none" />
               <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
             </div>
-
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
-
             {(!workoutType || !mood) && (
               <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
                 <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 to pick a workout type and mood.</p>
               </div>
             )}
-
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !workoutType || !mood}

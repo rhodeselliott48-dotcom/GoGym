@@ -4,9 +4,12 @@ import { createClient } from '@/lib/supabase'
 import { WorkoutPost, WorkoutType } from '@/lib/types'
 import WorkoutCard from '@/components/WorkoutCard'
 import BottomNav from '@/components/BottomNav'
-import { Search, MapPin } from 'lucide-react'
+import { Search, MapPin, ChevronDown } from 'lucide-react'
 
-const TYPES: (WorkoutType | 'All')[] = ['All', 'Push', 'Pull', 'Legs', 'Full Body', 'Cardio', 'HIIT', 'Mobility']
+const TYPES: (WorkoutType | 'All')[] = [
+  'All', 'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
+  'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
+]
 
 export default function DiscoverPage() {
   const [posts, setPosts] = useState<WorkoutPost[]>([])
@@ -16,6 +19,7 @@ export default function DiscoverPage() {
   const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -28,13 +32,11 @@ export default function DiscoverPage() {
       const excludeIds: string[] = []
       if (user) {
         excludeIds.push(user.id)
-
         const { data: friendships } = await supabase
           .from('friendships')
           .select('user_id, friend_id')
           .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
           .eq('status', 'accepted')
-
         if (friendships) {
           friendships.forEach((f: any) => {
             const otherId = f.user_id === user.id ? f.friend_id : f.user_id
@@ -59,11 +61,7 @@ export default function DiscoverPage() {
 
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((p: any) => p.user_id))]
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('id', userIds)
-
+        const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds)
         const profilesMap: Record<string, any> = {}
         if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
 
@@ -117,24 +115,43 @@ export default function DiscoverPage() {
     <div className="min-h-screen bg-[#0f0f0f] pb-nav">
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3">
         <h2 className="font-display text-3xl tracking-wide mb-3">Discover</h2>
+
+        {/* Search */}
         <div className="relative mb-2">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search workouts or people..."
             className="w-full bg-surface-2 border border-border rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-muted text-sm" />
         </div>
-        <div className="relative mb-3">
-          <MapPin size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Filter by city or gym..."
-            className="w-full bg-surface-2 border border-border rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-muted text-sm" />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-          {TYPES.map(t => (
-            <button key={t} onClick={() => setFilter(t)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all press
-                ${filter === t ? 'bg-brand text-white shadow-sm shadow-brand/20' : 'bg-surface-2 text-muted border border-border'}`}>
-              {t}
+
+        {/* Location + Type dropdown row */}
+        <div className="flex gap-2 mb-1">
+          <div className="relative flex-1">
+            <MapPin size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+            <input value={location} onChange={e => setLocation(e.target.value)} placeholder="City or gym..."
+              className="w-full bg-surface-2 border border-border rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-muted text-sm" />
+          </div>
+
+          {/* Type dropdown */}
+          <div className="relative">
+            <button onClick={() => setDropdownOpen(!dropdownOpen)}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all press whitespace-nowrap
+                ${filter !== 'All' ? 'bg-brand text-white border-brand' : 'bg-surface-2 text-muted border-border'}`}>
+              {filter === 'All' ? 'Type' : filter}
+              <ChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-          ))}
+
+            {dropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-44 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden z-50 shadow-xl">
+                {TYPES.map(t => (
+                  <button key={t} onClick={() => { setFilter(t); setDropdownOpen(false) }}
+                    className={`w-full text-left px-4 py-2.5 text-sm transition-all press
+                      ${filter === t ? 'bg-brand text-white font-semibold' : 'text-white/70 hover:bg-surface-3'}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
