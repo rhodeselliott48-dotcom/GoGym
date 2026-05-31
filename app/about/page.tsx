@@ -13,27 +13,21 @@ export default function AboutPage() {
 
       <div className="px-6 py-10 space-y-10">
 
-        {/* Logo + title */}
-        <div className="text-center flex flex-col items-center gap-4">
-          <Image src="/logo.png" alt="GoGym" width={100} height={100} className="rounded-3xl shadow-xl shadow-brand/20" />
-          <div>
-            <h1 className="font-display text-5xl text-white tracking-wide">Go<span className="text-brand">Gym</span></h1>
-            <p className="text-white/40 tracking-[0.3em] uppercase text-sm mt-1">Lift Together</p>
-          </div>
+        {/* Logo — no bubble, just the image */}
+        <div className="text-center flex flex-col items-center gap-3">
+          <Image src="/logo.png" alt="GoGym" width={110} height={110} className="rounded-3xl" />
+          <p className="text-white/40 tracking-[0.3em] uppercase text-sm">Lift Together</p>
           <div className="w-12 h-0.5 bg-brand rounded-full" />
         </div>
 
-        {/* Mission */}
+        {/* Mission — plain text, no bullets */}
         <div className="space-y-4">
           {[
             'A social space where lifting becomes more than just a routine—it\'s something you share.',
             'Track workouts, compete with friends, and celebrate progress together in a way that\'s fun, real, and completely your own.',
             'Train together. Compete together. Grow together. Make the gym social, fun, and whatever you want it to be.',
           ].map((p, i) => (
-            <div key={i} className="flex gap-3 items-start">
-              <span className="text-brand text-lg flex-shrink-0 mt-0.5">✵</span>
-              <p className="text-white/70 text-sm leading-relaxed">{p}</p>
-            </div>
+            <p key={i} className="text-white/70 text-sm leading-relaxed">{p}</p>
           ))}
         </div>
 
@@ -42,18 +36,20 @@ export default function AboutPage() {
           <h3 className="font-display text-xl text-brand uppercase tracking-widest mb-3">v0.5 Features</h3>
           <ul className="space-y-2">
             {[
-              '• Sign up & create your profile',
-              '• Log workouts with exercises, sets & reps',
-              '• Track PRs',
-              '• Upload photos per post',
-              '• Activity feed with likes & comments',
-              '• Discover & filter by type + city',
-              '• Leaderboard — workouts, time, PRs, days active',
-              '• Friends system — add & follow people',
-              '• Body map — see muscles targeted',
-              '• Exercise descriptions for new lifters',
-              '• Badges — earn them as you grind',
-              '• Public & Friends Only posts',
+              'Sign up & create your profile',
+              'Log workouts with exercises, sets & reps',
+              'Track PRs',
+              'Upload photos per post',
+              'Activity feed with likes & comments',
+              'Discover & filter by type + city',
+              'Leaderboard — workouts, time, PRs, days active',
+              'Friends system — add & follow people',
+              'Body map — see muscles targeted',
+              'Exercise descriptions for new lifters',
+              'Badges — earn them as you grind',
+              'Public & Friends Only posts',
+              'Preset workouts',
+              'Draft auto-save',
             ].map(f => (
               <li key={f} className="text-sm text-white/70">{f}</li>
             ))}

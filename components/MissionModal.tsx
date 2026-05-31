@@ -9,10 +9,7 @@ export default function MissionModal() {
     <>
       <button onClick={() => setOpen(true)} className="press text-left flex items-center gap-2">
         <Image src="/logo.png" alt="GoGym" width={36} height={36} className="rounded-xl" />
-        <div>
-          <h1 className="font-display text-2xl tracking-wide text-white leading-none">Go<span className="text-brand">Gym</span></h1>
-          <p className="text-light-gray/50 text-[10px] tracking-widest uppercase font-medium">Lift Together</p>
-        </div>
+        <p className="text-light-gray/50 text-[10px] tracking-widest uppercase font-medium">Lift Together</p>
       </button>
       {open && (
         <div className="modal-overlay" onClick={() => setOpen(false)}>
@@ -36,10 +33,7 @@ export default function MissionModal() {
                 'Track workouts, compete with friends, and celebrate progress together in a way that\'s fun, real, and completely your own.',
                 'Train together. Compete together. Grow together. Make the gym social, fun, and whatever you want it to be.',
               ].map((text, i) => (
-                <div key={i} className="flex gap-4 items-start">
-                  <span className="text-brand text-xl mt-0.5 flex-shrink-0">✵</span>
-                  <p className="text-light-gray/80 text-sm leading-relaxed">{text}</p>
-                </div>
+                <p key={i} className="text-light-gray/80 text-sm leading-relaxed">{text}</p>
               ))}
             </div>
             <div className="mt-8 pt-5 border-t border-border text-center">
