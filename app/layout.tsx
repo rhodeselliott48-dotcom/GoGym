@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next'
-import { Bebas_Neue, Inter } from 'next/font/google'
+import { Syne, Inter } from 'next/font/google'
 import './globals.css'
 
-const display = Bebas_Neue({
+const display = Syne({
   subsets: ['latin'],
-  weight: ['400'],
+  weight: ['700', '800'],
   variable: '--font-display',
 })
 

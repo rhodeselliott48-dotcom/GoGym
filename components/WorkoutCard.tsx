@@ -53,15 +53,16 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
   }
 
   return (
-    <article className="bg-surface-2 rounded-2xl overflow-hidden border border-border animate-fade-up">
-      {/* Header */}
+    <article className="bg-surface-2 rounded-2xl overflow-hidden border border-border">
+
+      {/* Header — avatar + name + time */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
         <Link href={`/profile/${profileUsername}`}>
-          <div className="w-10 h-10 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
+          <div className="w-9 h-9 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
             {post.profiles?.avatar_url ? (
               <img src={post.profiles.avatar_url} alt={profileUsername} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-brand font-display text-lg">
+              <div className="w-full h-full flex items-center justify-center text-brand font-semibold text-sm">
                 {profileUsername[0]?.toUpperCase()}
               </div>
             )}
@@ -69,78 +70,87 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         </Link>
         <div className="flex-1 min-w-0">
           <Link href={`/profile/${profileUsername}`}>
-            <p className="font-semibold text-white text-sm">@{profileUsername}</p>
+            <p className="font-semibold text-white text-sm leading-tight">@{profileUsername}</p>
           </Link>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-muted text-xs">{timeAgo(post.created_at)}</span>
             {post.gym_location && (
               <span className="flex items-center gap-0.5 text-muted text-xs">
-                <MapPin size={10} />{post.gym_location}
+                <MapPin size={9} />{post.gym_location}
               </span>
             )}
           </div>
         </div>
-        {hasPR && (
-          <div className="flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/30 rounded-full px-2 py-1">
-            <Star size={10} className="text-yellow-400 fill-yellow-400" />
-            <span className="text-yellow-400 text-xs font-bold">PR</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {hasPR && (
+            <div className="flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/30 rounded-full px-2 py-0.5">
+              <Star size={9} className="text-yellow-400 fill-yellow-400" />
+              <span className="text-yellow-400 text-[10px] font-bold">PR</span>
+            </div>
+          )}
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 ${colorClass}`}>
+            <Dumbbell size={9} />{post.workout_type}
+          </span>
+        </div>
       </div>
 
       {/* Title */}
       {post.title && (
-        <div className="px-4 pb-2">
-          <h3 className="font-display text-xl text-white tracking-wide">{post.title}</h3>
+        <div className="px-4 pb-3">
+          <h3 className="font-display text-2xl text-white tracking-tight leading-tight">{post.title}</h3>
+        </div>
+      )}
+
+      {/* BIG Photo — full width, prominent */}
+      {post.photo_urls?.length > 0 && (
+        <div className="relative w-full mb-3">
+          <img
+            src={post.photo_urls[0]}
+            alt="workout"
+            className="w-full object-cover"
+            style={{ maxHeight: '320px', minHeight: '200px' }}
+          />
+          {post.photo_urls.length > 1 && (
+            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs font-semibold px-2 py-1 rounded-full">
+              +{post.photo_urls.length - 1} more
+            </div>
+          )}
         </div>
       )}
 
       {/* Tags row */}
       <div className="px-4 pb-3 flex items-center gap-2 flex-wrap">
-        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border flex items-center gap-1 ${colorClass}`}>
-          <Dumbbell size={10} />{post.workout_type}
-        </span>
-        <span className="text-xs bg-surface-3 text-white/60 px-2.5 py-1 rounded-full border border-border">{post.mood}</span>
+        <span className="text-xs bg-surface-3 text-white/50 px-2.5 py-1 rounded-full border border-border">{post.mood}</span>
         {post.session_type && post.session_type !== 'Solo' && (
           <span className="text-xs bg-brand/10 text-brand px-2.5 py-1 rounded-full border border-brand/20 flex items-center gap-1">
-            <Users size={10} />{post.session_type}
+            <Users size={9} />{post.session_type}
           </span>
         )}
+        {hasMentions && post.mentions.map((username, i) => (
+          <Link key={i} href={`/profile/${cleanUsername(username)}`}
+            className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-full">
+            @{cleanUsername(username)}
+          </Link>
+        ))}
       </div>
-
-      {/* Mentions */}
-      {hasMentions && (
-        <div className="px-4 pb-3 flex items-center gap-1.5 flex-wrap">
-          <span className="text-muted text-xs">with</span>
-          {post.mentions.map((username, i) => (
-            <Link key={i} href={`/profile/${cleanUsername(username)}`}
-              className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-full">
-              @{cleanUsername(username)}
-            </Link>
-          ))}
-          {post.group_name && (
-            <span className="text-xs text-white/50 ml-1">· {post.group_name}</span>
-          )}
-        </div>
-      )}
 
       {/* Stats bar */}
       {(post.exercises?.length > 0 || post.duration_minutes) && (
-        <div className="mx-4 mb-3 bg-surface-3 rounded-xl px-3 py-2 flex items-center gap-4 border border-border">
+        <div className="mx-4 mb-3 bg-surface-3 rounded-xl px-4 py-2.5 flex items-center gap-5 border border-border">
           {post.exercises?.length > 0 && (
-            <div className="text-center">
+            <div>
               <p className="text-white font-bold text-sm">{post.exercises.length}</p>
               <p className="text-muted text-[10px] uppercase tracking-wide">exercises</p>
             </div>
           )}
           {totalSets > 0 && (
-            <div className="text-center">
+            <div>
               <p className="text-white font-bold text-sm">{totalSets}</p>
               <p className="text-muted text-[10px] uppercase tracking-wide">sets</p>
             </div>
           )}
           {post.duration_minutes && (
-            <div className="text-center flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <Clock size={12} className="text-brand" />
               <div>
                 <p className="text-white font-bold text-sm">{post.duration_minutes}m</p>
@@ -151,20 +161,9 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         </div>
       )}
 
-      {/* Photos */}
-      {post.photo_urls?.length > 0 && (
-        <div className="flex gap-1 px-4 mb-3 overflow-x-auto scrollbar-none">
-          {post.photo_urls.slice(0, 5).map((url, i) => (
-            <div key={i} className="flex-shrink-0 relative">
-              <img src={url} alt={`photo ${i+1}`} className="rounded-xl object-cover h-[90px] w-[120px]" />
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Caption */}
       {post.caption && (
-        <p className="px-4 pb-3 text-white/80 text-sm leading-relaxed">{post.caption}</p>
+        <p className="px-4 pb-3 text-white/70 text-sm leading-relaxed">{post.caption}</p>
       )}
 
       {/* Actions */}
