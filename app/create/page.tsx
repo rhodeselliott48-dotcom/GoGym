@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
-import { ArrowLeft, Plus, Trash2, Star, Info } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -40,6 +40,7 @@ function CreateForm() {
   const [caption, setCaption] = useState('')
   const [photo, setPhoto] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [isPublic, setIsPublic] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -106,6 +107,7 @@ function CreateForm() {
       city,
       mentions: mentionList,
       group_name: sessionType === 'Group' ? (groupName || null) : null,
+      is_public: isPublic,
     })
 
     if (postError) { setError('Post failed: ' + postError.message); setLoading(false); return }
@@ -134,9 +136,29 @@ function CreateForm() {
       </header>
 
       <div className="px-4 py-6 space-y-6">
+
+        {/* STEP 1 */}
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
+
+            {/* Public / Friends Only toggle */}
+            <div className="flex gap-2">
+              <button onClick={() => setIsPublic(true)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
+                  ${isPublic ? 'bg-brand text-white border-brand shadow-lg shadow-brand/20' : 'bg-surface-2 text-muted border-border'}`}>
+                <Globe size={15} /> Public
+              </button>
+              <button onClick={() => setIsPublic(false)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
+                  ${!isPublic ? 'bg-surface-3 text-white border-white/20' : 'bg-surface-2 text-muted border-border'}`}>
+                <Lock size={15} /> Friends Only
+              </button>
+            </div>
+            {!isPublic && (
+              <p className="text-muted text-xs -mt-2 px-1">Only your friends will see this workout</p>
+            )}
+
             <div>
               <label className="field-label">Workout Title</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete 💪" className="field-input" />
@@ -222,6 +244,7 @@ function CreateForm() {
           </div>
         )}
 
+        {/* STEP 2 */}
         {step === 2 && (
           <div className="space-y-4 animate-fade-up">
             <SectionLabel>Exercises</SectionLabel>
@@ -286,30 +309,44 @@ function CreateForm() {
           </div>
         )}
 
+        {/* STEP 3 */}
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
+
             {preview && (
               <div className="relative rounded-2xl overflow-hidden border border-border">
                 <img src={preview} alt="" className="w-full h-48 object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                <div className="absolute bottom-2 left-2">
+                <div className="absolute bottom-2 left-2 flex items-center gap-2">
                   <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full">📸 Photo attached</span>
+                  {!isPublic && <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full flex items-center gap-1"><Lock size={10} /> Friends Only</span>}
                 </div>
               </div>
             )}
+
+            {!preview && !isPublic && (
+              <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-xl px-4 py-3">
+                <Lock size={14} className="text-muted" />
+                <p className="text-muted text-sm">Friends Only post</p>
+              </div>
+            )}
+
             <div>
               <label className="field-label">Caption</label>
               <textarea value={caption} onChange={e => setCaption(e.target.value)}
                 placeholder="Talk your shit 💬" rows={3} maxLength={280} className="field-input resize-none" />
               <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
             </div>
+
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
+
             {(!workoutType || !mood) && (
               <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
                 <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 to pick a workout type and mood.</p>
               </div>
             )}
+
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !workoutType || !mood}
