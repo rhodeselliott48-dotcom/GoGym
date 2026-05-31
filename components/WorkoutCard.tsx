@@ -1,5 +1,4 @@
 'use client'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import { WorkoutPost } from '@/lib/types'
@@ -27,6 +26,10 @@ const typeColors: Record<string, string> = {
   'Other':     'bg-gray-500/20 text-gray-400 border-gray-500/30',
 }
 
+function cleanUsername(username: string) {
+  return username.replace('@', '').trim()
+}
+
 export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost; currentUserId?: string }) {
   const [liked, setLiked] = useState(post.user_has_liked || false)
   const [likeCount, setLikeCount] = useState(post.likes_count || 0)
@@ -35,6 +38,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
   const totalSets = post.exercises?.reduce((sum, e) => sum + (e.sets || 0), 0) || 0
   const hasPR = post.exercises?.some(e => e.is_pr)
   const hasMentions = post.mentions && post.mentions.length > 0
+  const profileUsername = cleanUsername(post.profiles?.username || '')
 
   async function toggleLike() {
     if (!currentUserId) return
@@ -52,20 +56,20 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
     <article className="bg-surface-2 rounded-2xl overflow-hidden border border-border animate-fade-up">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-        <Link href={`/profile/${post.profiles.username.replace('@', '')}`}
+        <Link href={`/profile/${profileUsername}`}>
           <div className="w-10 h-10 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
-            {post.profiles.avatar_url ? (
-              <img src={post.profiles.avatar_url} alt={post.profiles.username} className="w-full h-full object-cover" />
+            {post.profiles?.avatar_url ? (
+              <img src={post.profiles.avatar_url} alt={profileUsername} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-brand font-display text-lg">
-                {post.profiles.username[0].toUpperCase()}
+                {profileUsername[0]?.toUpperCase()}
               </div>
             )}
           </div>
         </Link>
         <div className="flex-1 min-w-0">
-          <Link href={`/profile/${post.profiles.username}`}>
-            <p className="font-semibold text-white text-sm">@{post.profiles.username}</p>
+          <Link href={`/profile/${profileUsername}`}>
+            <p className="font-semibold text-white text-sm">@{profileUsername}</p>
           </Link>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-muted text-xs">{timeAgo(post.created_at)}</span>
@@ -109,9 +113,9 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         <div className="px-4 pb-3 flex items-center gap-1.5 flex-wrap">
           <span className="text-muted text-xs">with</span>
           {post.mentions.map((username, i) => (
-            <Link key={i} href={`/profile/${username}`}
+            <Link key={i} href={`/profile/${cleanUsername(username)}`}
               className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-full">
-              @{username}
+              @{cleanUsername(username)}
             </Link>
           ))}
           {post.group_name && (
