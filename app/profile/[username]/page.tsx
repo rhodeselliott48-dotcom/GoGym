@@ -43,18 +43,9 @@ export default function DiscoverPage() {
         }
       }
 
-      // Fetch posts joined with profiles in one query
       let query = supabase
         .from('workout_posts')
-        .select(`
-          *,
-          profiles (
-            id,
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
 
@@ -66,10 +57,20 @@ export default function DiscoverPage() {
       if (error) { console.error(error); setLoading(false); return }
 
       if (data && data.length > 0) {
-        // Filter out any posts where profile didn't load
-        const validPosts = data.filter((p: any) => p.profiles?.username)
+        const userIds = [...new Set(data.map((p: any) => p.user_id))]
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, username, full_name, avatar_url')
+          .in('id', userIds)
 
-        const withCounts = await Promise.all(validPosts.map(async (post: any) => {
+        const profilesMap: Record<string, any> = {}
+        if (profilesData) profilesData.forEach((p: any) => { profilesMap[p.id] = p })
+
+        const withCounts = await Promise.all(data.map(async (post: any) => {
+          const profile = profilesMap[post.user_id]
+          // Skip posts where we couldn't load a profile with a username
+          if (!profile?.username) return null
+
           const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
             supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
@@ -77,14 +78,16 @@ export default function DiscoverPage() {
           ])
           return {
             ...post,
+            profiles: profile,
             likes_count: likes || 0,
             comments_count: comments || 0,
             user_has_liked: !!likedRes?.data,
           }
         }))
 
-        setPosts(withCounts as WorkoutPost[])
-        setFiltered(withCounts as WorkoutPost[])
+        const validPosts = withCounts.filter(Boolean) as WorkoutPost[]
+        setPosts(validPosts)
+        setFiltered(validPosts)
       } else {
         setPosts([])
         setFiltered([])
