@@ -45,8 +45,8 @@ export default function AuthPage() {
     <div className="min-h-screen bg-[#0f0f0f] flex flex-col px-6 py-12">
       {/* Logo */}
       <div className="text-center pt-10 pb-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-brand rounded-2xl mb-4 shadow-lg shadow-brand/30">
-          <span className="font-display text-3xl text-white">GG</span>
+        <div className="flex justify-center mb-4">
+          <img src="/logo.png" alt="GoGym" className="w-24 h-24 rounded-3xl shadow-xl shadow-brand/20" />
         </div>
         <h1 className="font-display text-5xl tracking-wide text-white">Go<span className="text-brand">Gym</span></h1>
         <p className="text-light-gray/60 text-sm mt-1 tracking-widest uppercase font-medium">Lift Together</p>
@@ -79,12 +79,12 @@ export default function AuthPage() {
           <button type="submit" disabled={loading}
             className="w-full bg-brand text-white font-display text-2xl py-4 rounded-2xl press
               disabled:opacity-50 shadow-lg shadow-brand/20 tracking-wider mt-2">
-            {loading ? '...' : mode === 'login' ? 'LET\'S GO' : 'JOIN GOGYM'}
+            {loading ? '...' : mode === 'login' ? "LET'S GO" : 'JOIN GOGYM'}
           </button>
         </form>
       </div>
 
-      <p className="text-center text-muted text-xs mt-8">Beta v0.2 · Invite only 🤫</p>
+      <p className="text-center text-muted text-xs mt-8">v0.5 · Invite only 🤫</p>
     </div>
   )
 }
