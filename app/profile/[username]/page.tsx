@@ -44,11 +44,21 @@ export default function PublicProfilePage() {
 
       const decodedUsername = decodeURIComponent(username).replace('@', '').toLowerCase().trim()
 
-      const { data: p } = await supabase
+      // Try exact match first, then case-insensitive fallback for mobile
+      let { data: p } = await supabase
         .from('profiles')
         .select('*')
         .eq('username', decodedUsername)
-        .single()
+        .maybeSingle()
+
+      if (!p) {
+        const { data: fallback } = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('username', decodedUsername)
+          .maybeSingle()
+        p = fallback
+      }
 
       if (!p) { setLoading(false); return }
       setProfile(p)
