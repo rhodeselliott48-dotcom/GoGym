@@ -52,7 +52,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
     <article className="bg-surface-2 rounded-2xl overflow-hidden border border-border animate-fade-up">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-        <Link href={`/profile/${post.profiles.username}`}>
+        <Link href={`/profile/${post.profiles.username.replace('@', '')}`}
           <div className="w-10 h-10 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
             {post.profiles.avatar_url ? (
               <img src={post.profiles.avatar_url} alt={post.profiles.username} className="w-full h-full object-cover" />
