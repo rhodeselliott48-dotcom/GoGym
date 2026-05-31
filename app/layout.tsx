@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from 'next'
-import { Syne, Inter } from 'next/font/google'
+import { Barlow_Condensed, Inter } from 'next/font/google'
 import './globals.css'
 
-const display = Syne({
+const display = Barlow_Condensed({
   subsets: ['latin'],
-  weight: ['700', '800'],
+  weight: ['600', '700', '800'],
   variable: '--font-display',
 })
 

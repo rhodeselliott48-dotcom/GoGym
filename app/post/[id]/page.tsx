@@ -229,200 +229,247 @@ export default function PostDetailPage() {
         </div>
       </header>
 
-      <div className="px-4 py-5 space-y-5">
-        {/* User info */}
-        <div className="flex items-center gap-3">
-          <Link href={`/profile/${post.profiles?.username}`}>
-            <div className="w-12 h-12 rounded-full bg-surface-3 border-2 border-brand/30 overflow-hidden">
-              {post.profiles?.avatar_url ? (
-                <img src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-brand font-display text-xl">
-                  {post.profiles?.username?.[0]?.toUpperCase()}
+      <div className="space-y-5">
+
+        {/* BIG PHOTO — first thing you see */}
+        {post.photo_urls?.length > 0 && (
+          <div className="relative w-full">
+            <img
+              src={post.photo_urls[0]}
+              alt="workout"
+              className="w-full object-cover"
+              style={{ maxHeight: '380px', minHeight: '240px' }}
+            />
+            {/* Gradient overlay with user info */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
+              <div className="flex items-end justify-between">
+                <div>
+                  {post.title && (
+                    <h1 className="font-display text-3xl text-white tracking-wide leading-tight mb-1">{post.title}</h1>
+                  )}
+                  <Link href={`/profile/${post.profiles?.username}`} className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-surface-3 border border-white/30 overflow-hidden">
+                      {post.profiles?.avatar_url ? (
+                        <img src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-brand text-xs font-bold">
+                          {post.profiles?.username?.[0]?.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-white/90 text-sm font-semibold">@{post.profiles?.username}</span>
+                    <span className="text-white/50 text-xs">{timeAgo(post.created_at)}</span>
+                  </Link>
                 </div>
-              )}
-            </div>
-          </Link>
-          <div>
-            <Link href={`/profile/${post.profiles?.username}`}>
-              <p className="font-semibold text-white">@{post.profiles?.username}</p>
-            </Link>
-            <div className="flex items-center gap-3 text-muted text-xs mt-0.5">
-              <span>{timeAgo(post.created_at)}</span>
-              {post.gym_location && <span className="flex items-center gap-0.5"><MapPin size={10} />{post.gym_location}</span>}
-              {post.city && <span>{post.city}</span>}
+                {post.photo_urls.length > 1 && (
+                  <div className="flex gap-1">
+                    {post.photo_urls.slice(1).map((url, i) => (
+                      <button key={i} onClick={() => setSelectedPhoto(url)}
+                        className="w-12 h-12 rounded-lg overflow-hidden border border-white/20 press">
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Tags */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
-            <Dumbbell size={11} />{post.workout_type}
-          </span>
-          <span className="text-xs bg-surface-2 text-white/60 border border-border px-3 py-1 rounded-full">{post.mood}</span>
-          {post.session_type !== 'Solo' && (
-            <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
-              <Users size={10} />{post.session_type}
-            </span>
-          )}
-        </div>
+        <div className="px-4 space-y-5">
 
-        {/* Mentions */}
-        {hasMentions && (
-          <div className="flex items-center gap-1.5 flex-wrap bg-surface-2 rounded-xl px-4 py-3 border border-border">
-            <span className="text-muted text-xs font-semibold uppercase tracking-wide">With</span>
-            {post.mentions.map((username: string, i: number) => (
-              <Link key={i} href={`/profile/${username}`}
-                className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-full">
-                @{username}
+          {/* User info — shown only if no photo */}
+          {!post.photo_urls?.length && (
+            <div className="flex items-center gap-3">
+              <Link href={`/profile/${post.profiles?.username}`}>
+                <div className="w-12 h-12 rounded-full bg-surface-3 border-2 border-brand/30 overflow-hidden">
+                  {post.profiles?.avatar_url ? (
+                    <img src={post.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-brand font-display text-xl">
+                      {post.profiles?.username?.[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
               </Link>
-            ))}
-            {post.group_name && <span className="text-xs text-white/50 ml-1">· {post.group_name}</span>}
-          </div>
-        )}
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Exercises', value: post.exercises?.length || 0 },
-            { label: 'Total Sets', value: totalSets },
-            { label: 'Duration', value: post.duration_minutes ? `${post.duration_minutes}m` : '—' },
-          ].map(s => (
-            <div key={s.label} className="bg-surface-2 rounded-2xl border border-border p-3 text-center">
-              <p className="font-display text-2xl text-brand">{s.value}</p>
-              <p className="text-muted text-[10px] uppercase tracking-wide mt-0.5">{s.label}</p>
+              <div>
+                <Link href={`/profile/${post.profiles?.username}`}>
+                  <p className="font-semibold text-white">@{post.profiles?.username}</p>
+                </Link>
+                <div className="flex items-center gap-3 text-muted text-xs mt-0.5">
+                  <span>{timeAgo(post.created_at)}</span>
+                  {post.gym_location && <span className="flex items-center gap-0.5"><MapPin size={10} />{post.gym_location}</span>}
+                  {post.city && <span>{post.city}</span>}
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
 
-        {/* PRs */}
-        {prExercises.length > 0 && (
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
-            <p className="text-yellow-400 font-bold text-sm flex items-center gap-2 mb-2">
-              <Star size={14} className="fill-yellow-400" /> Personal Records 🏆
-            </p>
-            {prExercises.map((e, i) => (
-              <p key={i} className="text-yellow-300/80 text-sm">{e.name} — {e.sets} sets × {e.reps} reps {e.weight ? `@ ${e.weight}lbs` : ''}</p>
+          {/* Title — shown only if no photo */}
+          {!post.photo_urls?.length && post.title && (
+            <h1 className="font-display text-3xl text-white tracking-wide">{post.title}</h1>
+          )}
+
+          {/* Location row when there IS a photo */}
+          {post.photo_urls?.length > 0 && (post.gym_location || post.city) && (
+            <div className="flex items-center gap-1.5 text-muted text-xs">
+              <MapPin size={11} />
+              <span>{[post.gym_location, post.city].filter(Boolean).join(' · ')}</span>
+            </div>
+          )}
+
+          {/* Tags */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
+              <Dumbbell size={11} />{post.workout_type}
+            </span>
+            <span className="text-xs bg-surface-2 text-white/60 border border-border px-3 py-1 rounded-full">{post.mood}</span>
+            {post.session_type !== 'Solo' && (
+              <span className="text-xs bg-brand/10 text-brand border border-brand/20 px-3 py-1 rounded-full flex items-center gap-1">
+                <Users size={10} />{post.session_type}
+              </span>
+            )}
+          </div>
+
+          {/* Mentions */}
+          {hasMentions && (
+            <div className="flex items-center gap-1.5 flex-wrap bg-surface-2 rounded-xl px-4 py-3 border border-border">
+              <span className="text-muted text-xs font-semibold uppercase tracking-wide">With</span>
+              {post.mentions.map((username: string, i: number) => (
+                <Link key={i} href={`/profile/${username}`}
+                  className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-full">
+                  @{username}
+                </Link>
+              ))}
+              {post.group_name && <span className="text-xs text-white/50 ml-1">· {post.group_name}</span>}
+            </div>
+          )}
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Exercises', value: post.exercises?.length || 0 },
+              { label: 'Total Sets', value: totalSets },
+              { label: 'Duration', value: post.duration_minutes ? `${post.duration_minutes}m` : '—' },
+            ].map(s => (
+              <div key={s.label} className="bg-surface-2 rounded-2xl border border-border p-3 text-center">
+                <p className="font-display text-2xl text-brand">{s.value}</p>
+                <p className="text-muted text-[10px] uppercase tracking-wide mt-0.5">{s.label}</p>
+              </div>
             ))}
           </div>
-        )}
 
-        {/* Caption */}
-        {post.caption && <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>}
+          {/* PRs */}
+          {prExercises.length > 0 && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4">
+              <p className="text-yellow-400 font-bold text-sm flex items-center gap-2 mb-2">
+                <Star size={14} className="fill-yellow-400" /> Personal Records 🏆
+              </p>
+              {prExercises.map((e, i) => (
+                <p key={i} className="text-yellow-300/80 text-sm">{e.name} — {e.sets} sets × {e.reps} reps {e.weight ? `@ ${e.weight}lbs` : ''}</p>
+              ))}
+            </div>
+          )}
 
-        {/* Exercise list - expandable */}
-        {post.exercises?.length > 0 && (
-          <div>
-            <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Exercises</h3>
-            <div className="space-y-2">
-              {post.exercises.map((ex, i) => {
-                const info = findExercise(ex.name)
-                const isExpanded = expandedExercise === i
-                return (
-                  <button key={i}
-                    onClick={() => setExpandedExercise(isExpanded ? null : i)}
-                    className="w-full bg-surface-2 rounded-xl border border-border px-4 py-3 text-left transition-all press">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-brand font-display text-sm w-5 flex-shrink-0">{i+1}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-white text-sm flex items-center gap-1.5">
-                            {ex.name}
-                            {ex.is_pr && <Star size={12} className="text-yellow-400 fill-yellow-400" />}
-                          </p>
-                          {!isExpanded && info && (
-                            <p className="text-muted text-xs mt-0.5 truncate">{info.description.slice(0, 50)}...</p>
+          {/* Caption */}
+          {post.caption && <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>}
+
+          {/* Exercises */}
+          {post.exercises?.length > 0 && (
+            <div>
+              <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Exercises</h3>
+              <div className="space-y-2">
+                {post.exercises.map((ex, i) => {
+                  const info = findExercise(ex.name)
+                  const isExpanded = expandedExercise === i
+                  return (
+                    <button key={i}
+                      onClick={() => setExpandedExercise(isExpanded ? null : i)}
+                      className="w-full bg-surface-2 rounded-xl border border-border px-4 py-3 text-left transition-all press">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-brand font-display text-sm w-5 flex-shrink-0">{i+1}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-white text-sm flex items-center gap-1.5">
+                              {ex.name}
+                              {ex.is_pr && <Star size={12} className="text-yellow-400 fill-yellow-400" />}
+                            </p>
+                            {!isExpanded && info && (
+                              <p className="text-muted text-xs mt-0.5 truncate">{info.description.slice(0, 50)}...</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          <div className="text-right">
+                            <p className="text-brand font-semibold text-sm">{ex.sets}×{ex.reps}</p>
+                            {ex.weight && <p className="text-muted text-xs">{ex.weight} lbs</p>}
+                          </div>
+                          {info && (isExpanded
+                            ? <ChevronUp size={14} className="text-muted" />
+                            : <ChevronDown size={14} className="text-muted" />
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                        <div className="text-right">
-                          <p className="text-brand font-semibold text-sm">{ex.sets}×{ex.reps}</p>
-                          {ex.weight && <p className="text-muted text-xs">{ex.weight} lbs</p>}
+                      {isExpanded && info && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <p className="text-light-gray/70 text-sm leading-relaxed">{info.description}</p>
+                          {info.muscles && info.muscles.length > 0 && (
+                            <div className="flex gap-1.5 flex-wrap mt-2">
+                              {info.muscles.map(m => (
+                                <span key={m} className="text-xs bg-brand/10 text-brand border border-brand/20 px-2 py-0.5 rounded-full">{m}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {info && (isExpanded
-                          ? <ChevronUp size={14} className="text-muted" />
-                          : <ChevronDown size={14} className="text-muted" />
-                        )}
-                      </div>
-                    </div>
-                    {/* Expanded description */}
-                    {isExpanded && info && (
-                      <div className="mt-3 pt-3 border-t border-border">
-                        <p className="text-light-gray/70 text-sm leading-relaxed">{info.description}</p>
-                        {info.muscles && info.muscles.length > 0 && (
-                          <div className="flex gap-1.5 flex-wrap mt-2">
-                            {info.muscles.map(m => (
-                              <span key={m} className="text-xs bg-brand/10 text-brand border border-brand/20 px-2 py-0.5 rounded-full">
-                                {m}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Body Map */}
-        {uniqueMuscles.length > 0 && (
-          <div className="bg-surface-2 rounded-2xl border border-border p-4">
-            <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-1">Muscles Targeted</h3>
-            <p className="text-muted text-xs mb-3">{uniqueMuscles.join(' · ')}</p>
-            <BodyMap muscles={uniqueMuscles} />
-          </div>
-        )}
+          {/* Body Map */}
+          {uniqueMuscles.length > 0 && (
+            <div className="bg-surface-2 rounded-2xl border border-border p-4">
+              <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-1">Muscles Targeted</h3>
+              <p className="text-muted text-xs mb-3">{uniqueMuscles.join(' · ')}</p>
+              <BodyMap muscles={uniqueMuscles} />
+            </div>
+          )}
 
-        {/* Photos */}
-        {post.photo_urls?.length > 0 && (
+          {/* Comments */}
           <div>
-            <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Session Photos</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {post.photo_urls.map((url, i) => (
-                <button key={i} onClick={() => setSelectedPhoto(url)}
-                  className={`relative rounded-2xl overflow-hidden ${i === 0 && post.photo_urls.length % 2 !== 0 ? 'col-span-2' : ''}`}>
-                  <img src={url} alt={`photo ${i+1}`} className="w-full h-48 object-cover" />
-                </button>
-              ))}
+            <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">
+              Comments {totalComments > 0 && `(${totalComments})`}
+            </h3>
+            {comments.length === 0 && (
+              <p className="text-muted text-sm text-center py-4">No comments yet. Be the first!</p>
+            )}
+            <div className="space-y-4 mb-4">
+              {comments.map(c => <CommentItem key={c.id} comment={c} />)}
             </div>
-          </div>
-        )}
 
-        {/* Comments */}
-        <div>
-          <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">
-            Comments {totalComments > 0 && `(${totalComments})`}
-          </h3>
-          {comments.length === 0 && (
-            <p className="text-muted text-sm text-center py-4">No comments yet. Be the first!</p>
-          )}
-          <div className="space-y-4 mb-4">
-            {comments.map(c => <CommentItem key={c.id} comment={c} />)}
-          </div>
+            {replyingTo && (
+              <div className="flex items-center gap-2 bg-brand/10 border border-brand/20 rounded-xl px-3 py-2 mb-2">
+                <CornerDownRight size={14} className="text-brand" />
+                <span className="text-brand text-xs flex-1">Replying to @{replyingTo.username}</span>
+                <button onClick={() => { setReplyingTo(null); setNewComment('') }} className="text-muted press">✕</button>
+              </div>
+            )}
 
-          {replyingTo && (
-            <div className="flex items-center gap-2 bg-brand/10 border border-brand/20 rounded-xl px-3 py-2 mb-2">
-              <CornerDownRight size={14} className="text-brand" />
-              <span className="text-brand text-xs flex-1">Replying to @{replyingTo.username}</span>
-              <button onClick={() => { setReplyingTo(null); setNewComment('') }} className="text-muted press">✕</button>
+            <div className="flex gap-2">
+              <input ref={commentInputRef} value={newComment} onChange={e => setNewComment(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && submitComment()}
+                placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
+                maxLength={200}
+                className="flex-1 bg-surface-2 border border-border rounded-2xl px-4 py-3 text-white text-sm placeholder-muted" />
+              <button onClick={submitComment} disabled={!newComment.trim()}
+                className="bg-brand text-white rounded-2xl px-4 press disabled:opacity-40">
+                <Send size={18} />
+              </button>
             </div>
-          )}
-
-          <div className="flex gap-2">
-            <input ref={commentInputRef} value={newComment} onChange={e => setNewComment(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && submitComment()}
-              placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
-              maxLength={200}
-              className="flex-1 bg-surface-2 border border-border rounded-2xl px-4 py-3 text-white text-sm placeholder-muted" />
-            <button onClick={submitComment} disabled={!newComment.trim()}
-              className="bg-brand text-white rounded-2xl px-4 press disabled:opacity-40">
-              <Send size={18} />
-            </button>
           </div>
         </div>
       </div>
