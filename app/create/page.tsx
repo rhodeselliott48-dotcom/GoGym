@@ -1,7 +1,7 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
 import { Camera, X, ArrowLeft, Plus, Trash2, Star, Info } from 'lucide-react'
@@ -22,7 +22,10 @@ const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20
 function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', weight: '', is_pr: false } }
 
 export default function CreatePage() {
-  const [step, setStep] = useState(1)
+  const searchParams = useSearchParams()
+  const hasPhotos = searchParams.get('photos') === '1'
+
+  const [step, setStep] = useState(hasPhotos ? 3 : 1)
   const [title, setTitle] = useState('')
   const [workoutType, setWorkoutType] = useState<WorkoutType | ''>('')
   const [sessionType, setSessionType] = useState<SessionType>('Solo')
@@ -42,6 +45,19 @@ export default function CreatePage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  // Pick up photos passed from BottomNav
+  useEffect(() => {
+    if (!hasPhotos) return
+    function onPhotos(e: Event) {
+      const files = (e as CustomEvent).detail.files as File[]
+      const toAdd = files.slice(0, 5)
+      setPhotos(toAdd)
+      setPreviews(toAdd.map(f => URL.createObjectURL(f)))
+    }
+    window.addEventListener('gogym_photos', onPhotos)
+    return () => window.removeEventListener('gogym_photos', onPhotos)
+  }, [hasPhotos])
 
   function addExercise() { setExercises(prev => [...prev, emptyExercise()]) }
   function removeExercise(i: number) { setExercises(prev => prev.filter((_, idx) => idx !== i)) }
@@ -64,13 +80,9 @@ export default function CreatePage() {
 
   async function handleSubmit() {
     if (!workoutType || !mood) { setError('Please complete all required fields'); return }
-
-    // Validate joint session has exactly 1 partner
     if (sessionType === 'Joint' && !jointPartner.trim()) {
-      setError('Joint session requires 1 partner username')
-      return
+      setError('Joint session requires 1 partner username'); return
     }
-
     setLoading(true); setError('')
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -87,7 +99,6 @@ export default function CreatePage() {
       }
     }
 
-    // Build mentions list
     let mentionList: string[] = []
     if (sessionType === 'Joint' && jointPartner.trim()) {
       mentionList = [jointPartner.trim().replace('@', '')]
@@ -137,13 +148,10 @@ export default function CreatePage() {
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
-
             <div>
               <label className="field-label">Workout Title</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete 💪"
-                className="field-input" />
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete 💪" className="field-input" />
             </div>
-
             <div>
               <label className="field-label">Workout Type *</label>
               <div className="grid grid-cols-4 gap-2">
@@ -156,14 +164,11 @@ export default function CreatePage() {
                 ))}
               </div>
             </div>
-
             <div>
               <label className="field-label">Session Type</label>
               <div className="space-y-2">
                 {SESSION_TYPES.map(s => (
-                  <button key={s.value} type="button"
-                    disabled={s.value === 'Live'}
-                    onClick={() => setSessionType(s.value)}
+                  <button key={s.value} type="button" disabled={s.value === 'Live'} onClick={() => setSessionType(s.value)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all press
                       ${sessionType === s.value ? 'bg-brand/10 border-brand text-white' : 'bg-surface-2 border-border text-white/70'}
                       ${s.value === 'Live' ? 'opacity-40 cursor-not-allowed' : ''}`}>
@@ -177,46 +182,25 @@ export default function CreatePage() {
                 ))}
               </div>
             </div>
-
-            {/* Joint - exactly 1 partner */}
             {sessionType === 'Joint' && (
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-2">
                 <label className="field-label">Partner Username (1 only)</label>
-                <input
-                  value={jointPartner}
-                  onChange={e => setJointPartner(e.target.value.replace('@', ''))}
-                  placeholder="@username"
-                  className="field-input"
-                />
+                <input value={jointPartner} onChange={e => setJointPartner(e.target.value.replace('@', ''))} placeholder="@username" className="field-input" />
                 <p className="text-muted text-xs">Joint sessions are limited to 1 workout partner</p>
               </div>
             )}
-
-            {/* Group - multiple members */}
             {sessionType === 'Group' && (
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-3">
                 <div>
                   <label className="field-label">Group Members (comma separated)</label>
-                  <input
-                    value={groupMembers}
-                    onChange={e => setGroupMembers(e.target.value)}
-                    placeholder="@username1, @username2, @username3"
-                    className="field-input"
-                  />
-                  <p className="text-muted text-xs mt-1">Tag everyone in your group session</p>
+                  <input value={groupMembers} onChange={e => setGroupMembers(e.target.value)} placeholder="@username1, @username2" className="field-input" />
                 </div>
                 <div>
                   <label className="field-label">Group Name (optional)</label>
-                  <input
-                    value={groupName}
-                    onChange={e => setGroupName(e.target.value)}
-                    placeholder="e.g. The Wolfpack"
-                    className="field-input"
-                  />
+                  <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="e.g. The Wolfpack" className="field-input" />
                 </div>
               </div>
             )}
-
             <div>
               <label className="field-label">How are you feeling? *</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -229,27 +213,21 @@ export default function CreatePage() {
                 ))}
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Duration (mins)</label>
-                <input type="number" value={duration} onChange={e => setDuration(e.target.value)}
-                  placeholder="60" className="field-input" />
+                <input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="60" className="field-input" />
               </div>
               <div>
                 <label className="field-label">City</label>
-                <input value={city} onChange={e => setCity(e.target.value)}
-                  placeholder="Dallas, TX" className="field-input" />
+                <input value={city} onChange={e => setCity(e.target.value)} placeholder="Dallas, TX" className="field-input" />
               </div>
             </div>
             <div>
               <label className="field-label">Gym / Location</label>
-              <input value={gymLocation} onChange={e => setGymLocation(e.target.value)}
-                placeholder="e.g. LA Fitness, 5th St" className="field-input" />
+              <input value={gymLocation} onChange={e => setGymLocation(e.target.value)} placeholder="e.g. LA Fitness, 5th St" className="field-input" />
             </div>
-
-            <button onClick={() => setStep(2)}
-              className="w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">
+            <button onClick={() => setStep(2)} className="w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">
               NEXT: ADD EXERCISES →
             </button>
           </div>
@@ -259,7 +237,6 @@ export default function CreatePage() {
         {step === 2 && (
           <div className="space-y-4 animate-fade-up">
             <SectionLabel>Exercises</SectionLabel>
-
             {exercises.map((ex, i) => {
               const info = ex.name ? findExercise(ex.name) : null
               return (
@@ -267,50 +244,39 @@ export default function CreatePage() {
                   <div className="p-4 space-y-3">
                     <div className="flex items-center gap-2">
                       <span className="text-brand font-display text-lg w-6">{i+1}</span>
-                      <input value={ex.name} onChange={e => updateExercise(i, 'name', e.target.value)}
-                        placeholder="Exercise name..." className="flex-1 field-input" />
+                      <input value={ex.name} onChange={e => updateExercise(i, 'name', e.target.value)} placeholder="Exercise name..." className="flex-1 field-input" />
                       <button onClick={() => updateExercise(i, 'is_pr', !ex.is_pr)}
-                        className={`p-2 rounded-xl border press transition-all ${ex.is_pr ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400' : 'bg-surface-3 border-border text-muted'}`}
-                        title="Mark as PR">
+                        className={`p-2 rounded-xl border press transition-all ${ex.is_pr ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400' : 'bg-surface-3 border-border text-muted'}`}>
                         <Star size={16} className={ex.is_pr ? 'fill-yellow-400' : ''} />
                       </button>
                       {exercises.length > 1 && (
-                        <button onClick={() => removeExercise(i)} className="p-2 text-muted hover:text-red-400 press">
-                          <Trash2 size={16} />
-                        </button>
+                        <button onClick={() => removeExercise(i)} className="p-2 text-muted hover:text-red-400 press"><Trash2 size={16} /></button>
                       )}
                     </div>
-
                     {info && (
                       <div className="flex items-start gap-2 bg-surface-3 rounded-xl px-3 py-2 border border-border">
                         <Info size={12} className="text-brand mt-0.5 flex-shrink-0" />
                         <p className="text-xs text-light-gray/60 leading-relaxed">{info.description}</p>
                       </div>
                     )}
-
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="field-label">Sets</label>
-                        <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))}
-                          className="field-input">
+                        <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
                           {SET_OPTIONS.map(n => <option key={n} value={n}>{n} sets</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="field-label">Reps</label>
-                        <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)}
-                          className="field-input">
+                        <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
                           {REP_OPTIONS.map(r => <option key={r} value={r}>{r} reps</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="field-label">Weight (lbs)</label>
-                        <input type="number" value={ex.weight}
-                          onChange={e => updateExercise(i, 'weight', e.target.value)}
-                          placeholder="135" className="field-input" />
+                        <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)} placeholder="135" className="field-input" />
                       </div>
                     </div>
-
                     {ex.is_pr && (
                       <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-2">
                         <Star size={12} className="text-yellow-400 fill-yellow-400" />
@@ -321,22 +287,13 @@ export default function CreatePage() {
                 </div>
               )
             })}
-
             <button onClick={addExercise}
-              className="w-full py-3 rounded-2xl border-2 border-dashed border-border text-muted
-                flex items-center justify-center gap-2 hover:border-brand/40 hover:text-brand/70 transition-all press">
-              <Plus size={18} />
-              <span className="font-semibold text-sm">Add Exercise</span>
+              className="w-full py-3 rounded-2xl border-2 border-dashed border-border text-muted flex items-center justify-center gap-2 hover:border-brand/40 hover:text-brand/70 transition-all press">
+              <Plus size={18} /><span className="font-semibold text-sm">Add Exercise</span>
             </button>
-
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setStep(1)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">
-                ← Back
-              </button>
-              <button onClick={() => setStep(3)}
-                className="bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">
-                NEXT →
-              </button>
+              <button onClick={() => setStep(1)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
+              <button onClick={() => setStep(3)} className="bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">NEXT →</button>
             </div>
           </div>
         )}
@@ -345,15 +302,11 @@ export default function CreatePage() {
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
-
             <div>
               <label className="field-label">Caption</label>
-              <textarea value={caption} onChange={e => setCaption(e.target.value)}
-                placeholder="Talk your shit 💬" rows={3} maxLength={280}
-                className="field-input resize-none" />
+              <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Talk your shit 💬" rows={3} maxLength={280} className="field-input resize-none" />
               <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
             </div>
-
             <div>
               <label className="field-label">Photos ({photos.length}/5)</label>
               {previews.length > 0 && (
@@ -361,34 +314,38 @@ export default function CreatePage() {
                   {previews.map((p, i) => (
                     <div key={i} className="relative flex-shrink-0">
                       <img src={p} alt="" className="w-24 h-24 rounded-xl object-cover" />
-                      <button onClick={() => removePhoto(i)}
-                        className="absolute -top-1 -right-1 bg-black rounded-full p-0.5 press">
-                        <X size={14} />
-                      </button>
+                      <button onClick={() => removePhoto(i)} className="absolute -top-1 -right-1 bg-black rounded-full p-0.5 press"><X size={14} /></button>
                     </div>
                   ))}
                 </div>
               )}
               {photos.length < 5 && (
                 <button onClick={() => fileRef.current?.click()}
-                  className="w-full py-4 border-2 border-dashed border-border rounded-2xl
-                    flex items-center justify-center gap-2 text-muted hover:border-brand/40 hover:text-brand/70 transition-all press">
-                  <Camera size={20} />
-                  <span className="text-sm font-medium">Add Photos</span>
+                  className="w-full py-4 border-2 border-dashed border-border rounded-2xl flex items-center justify-center gap-2 text-muted hover:border-brand/40 hover:text-brand/70 transition-all press">
+                  <Camera size={20} /><span className="text-sm font-medium">Add Photos</span>
                 </button>
               )}
               <input ref={fileRef} type="file" accept="image/*" multiple onChange={handlePhotos} className="hidden" />
             </div>
 
+            {hasPhotos && photos.length === 0 && (
+              <div className="bg-surface-2 border border-border rounded-2xl px-4 py-3">
+                <p className="text-muted text-sm text-center">Photos didn't transfer — use the Add Photos button above.</p>
+              </div>
+            )}
+
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
 
+            {(!workoutType || !mood) && (
+              <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
+                <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 to pick a workout type and mood before posting.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">
-                ← Back
-              </button>
+              <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !workoutType || !mood}
-                className="bg-brand text-white font-display text-xl py-4 rounded-2xl press
-                  disabled:opacity-40 shadow-lg shadow-brand/20 tracking-wide">
+                className="bg-brand text-white font-display text-xl py-4 rounded-2xl press disabled:opacity-40 shadow-lg shadow-brand/20 tracking-wide">
                 {loading ? 'POSTING...' : 'POST IT 🔥'}
               </button>
             </div>
