@@ -8,7 +8,7 @@ export default function MissionModal() {
   return (
     <>
       <button onClick={() => setOpen(true)} className="press text-left flex items-center gap-2">
-        <Image src="/logo.png" alt="GoGym" width={44} height={44} className="rounded-xl" />
+        <Image src="/logo.png" alt="GoGym" width={44} height={44} className="rounded-none" style={{ mixBlendMode: 'lighten' }} />
 <p className="text-light-gray/50 text-xs tracking-widest uppercase font-medium">Lift Together</p>
       </button>
       {open && (
@@ -17,7 +17,7 @@ export default function MissionModal() {
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <Image src="/logo.png" alt="GoGym" width={44} height={44} className="rounded-2xl" />
+                <Image src="/logo.png" alt="GoGym" width={44} height={44} className="rounded-none" style={{ mixBlendMode: 'lighten' }} />
                 <div>
                   <h2 className="font-display text-3xl text-white tracking-wide">Our Mission</h2>
                   <p className="text-brand text-xs uppercase tracking-widest font-semibold mt-0.5">Why GoGym exists</p>

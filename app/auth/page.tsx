@@ -46,7 +46,7 @@ export default function AuthPage() {
       {/* Logo — no bubble, no GoGym text */}
       <div className="text-center pt-10 pb-2">
         <div className="flex justify-center mb-4">
-  <img src="/logo.png" alt="GoGym" className="w-36 h-36 rounded-3xl" />
+  <img src="/logo.png" alt="GoGym" className="w-36 h-36" style={{ mixBlendMode: 'lighten' }} />
 </div>
 <p className="text-light-gray/60 text-lg mt-2 tracking-widest uppercase font-medium">Lift Together</p>
       </div>

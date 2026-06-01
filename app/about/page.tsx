@@ -15,7 +15,7 @@ export default function AboutPage() {
 
         {/* Logo — no bubble, just the image */}
         <div className="text-center flex flex-col items-center gap-3">
-          <Image src="/logo.png" alt="GoGym" width={110} height={110} className="rounded-3xl" />
+         <Image src="/logo.png" alt="GoGym" width={110} height={110} className="rounded-none" style={{ mixBlendMode: 'lighten' }} />
           <p className="text-white/40 tracking-[0.3em] uppercase text-sm">Lift Together</p>
           <div className="w-12 h-0.5 bg-brand rounded-full" />
         </div>
