@@ -103,7 +103,7 @@ if (!p) { setLoading(false); return }
 
 const allPosts = [...(ownPosts || [])]
 
-      const allPosts = [...(ownPosts || []), ...(mentionedPosts || [])]
+      const allPosts = [...(ownPosts || [])]
       const seen = new Set()
       const dedupedPosts = allPosts.filter((post: any) => {
         if (seen.has(post.id)) return false
