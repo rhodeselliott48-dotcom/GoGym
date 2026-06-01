@@ -1,5 +1,5 @@
 export type WorkoutType = 'Push' | 'Pull' | 'Upper' | 'Lower' | 'Legs' | 'Full Body' | 'Cardio' | 'HIIT' | 'Mobility' | 'Stairmaster' | 'Treadmill' | 'Other'
-export type Mood = '🔥 Locked In' | '😴 Tired' | '😊 Great' | '🔥 On Fire' | '💪 Strong' | '💀 Dead Inside'
+export type Mood = '🔒 Locked In' | '😴 Tired' | '😊 Great' | '🔥 On Fire' | '💪 Strong' | '💀 Dead Inside'
 export type SessionType = 'Solo' | 'Joint' | 'Group' | 'Live'
 export type FavSplit = 'PPL' | 'Bro Split' | 'Upper/Lower' | '5/3/1' | 'Full Body' | 'PHUL' | 'Other'
 

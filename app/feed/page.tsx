@@ -136,9 +136,6 @@ export default function FeedPage() {
         <div className="flex items-center justify-between">
           <MissionModal />
           <div className="flex items-center gap-3">
-            <Link href="/leaderboard" className="text-muted hover:text-white press">
-              <Users size={20} />
-            </Link>
             <Link href="/notifications" className="text-muted hover:text-white press relative">
               <Bell size={20} />
               {pendingCount > 0 && (

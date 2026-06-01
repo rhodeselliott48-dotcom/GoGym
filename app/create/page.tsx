@@ -12,7 +12,7 @@ const WORKOUT_TYPES: WorkoutType[] = [
   'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
   'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
 ]
-const MOODS: Mood[] = ['🔥 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
+const MOODS: Mood[] = ['🔒 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
 const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
   { value: 'Solo',  label: '🧍 Solo',         desc: 'Just you grinding' },
   { value: 'Joint', label: '👥 Joint Session', desc: 'With 1 workout partner' },
