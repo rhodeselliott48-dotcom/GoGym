@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
 const WORKOUT_TYPES: WorkoutType[] = ['Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body', 'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other']
-const MOODS: Mood[] = ['🔥 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
+const MOODS: Mood[] = ['🔒 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
 const SET_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20','25','30','AMRAP','Failure']
 const INCLINE_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15']
