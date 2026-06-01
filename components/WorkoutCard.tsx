@@ -161,38 +161,38 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
   }
 
   async function handleShare() {
-    setCapturing(true)
-    try {
-      // Dynamic import to keep bundle small
-      const html2canvas = (await import('html2canvas')).default
-      const el = document.getElementById('gogym-share-card')
-      if (!el) return
-      const canvas = await html2canvas(el, { backgroundColor: null, scale: 2 })
-      canvas.toBlob(async blob => {
-        if (!blob) return
-        const file = new File([blob], 'gogym-workout.png', { type: 'image/png' })
-        if (navigator.share && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: post.title || 'GoGym Workout',
-            text: `Check out my workout on GoGym!`,
-          })
-        } else {
-          // Fallback — download the image
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = 'gogym-workout.png'
-          a.click()
-          URL.revokeObjectURL(url)
-        }
-      }, 'image/png')
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setCapturing(false)
-    }
+  setCapturing(true)
+  try {
+    const html2canvas = (await import('html2canvas')).default
+    const el = document.getElementById('gogym-share-card')
+    if (!el) return
+    const canvas = await html2canvas(el, { backgroundColor: null, scale: 2 })
+    canvas.toBlob(async blob => {
+      if (!blob) return
+      const file = new File([blob], 'gogym-workout.png', { type: 'image/png' })
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: post.title || 'GoGym Workout',
+          text: `Check out my workout on GoGym!`,
+        })
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'gogym-workout.png'
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+      setShowShareModal(false)
+    }, 'image/png')
+  } catch (err) {
+    console.error(err)
+    setShowShareModal(false)
+  } finally {
+    setCapturing(false)
   }
+}
 
   return (
     <article className="bg-surface-2 rounded-2xl overflow-hidden border border-border">
