@@ -35,12 +35,12 @@ export default function FeedPage() {
       setCurrentUserId(user?.id ?? null)
       if (!user) { setLoading(false); return }
 
-      const { count: pending } = await supabase
-  .from('notifications')
-  .select('*', { count: 'exact', head: true })
-  .eq('user_id', user.id)
-  .eq('read', false)
-setPendingCount(pending || 0)
+      const { count: unread } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false)
+      setPendingCount(unread || 0)
 
       const { data: myProfile } = await supabase
         .from('profiles')
@@ -63,7 +63,6 @@ setPendingCount(pending || 0)
         })
       }
 
-      // Check if user logged a workout today
       const todayStart = new Date()
       todayStart.setHours(0, 0, 0, 0)
       const { count: todayCount } = await supabase
@@ -73,7 +72,6 @@ setPendingCount(pending || 0)
         .gte('created_at', todayStart.toISOString())
 
       if (!todayCount || todayCount === 0) {
-        // Show nudge after 2.5 seconds
         setTimeout(() => setShowNudge(true), 2500)
       }
 
@@ -153,16 +151,14 @@ setPendingCount(pending || 0)
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
           <MissionModal />
-          <div className="flex items-center gap-3">
-            <Link href="/notifications" className="text-muted hover:text-white press relative">
-  <Bell size={20} />
-  {pendingCount > 0 && (
-    <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand rounded-full text-white text-[10px] font-bold flex items-center justify-center">
-      {pendingCount}
-    </span>
-  )}
-</Link>f
-          </div>
+          <Link href="/notifications" className="text-muted hover:text-white press relative">
+            <Bell size={20} />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand rounded-full text-white text-[10px] font-bold flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
+          </Link>
         </div>
       </header>
 
@@ -212,7 +208,6 @@ setPendingCount(pending || 0)
         )}
       </main>
 
-      {/* Daily nudge */}
       {showNudge && (
         <div className="fixed inset-0 z-[60] flex items-end" onClick={() => setShowNudge(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
