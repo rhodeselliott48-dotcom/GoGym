@@ -36,11 +36,11 @@ export default function FeedPage() {
       if (!user) { setLoading(false); return }
 
       const { count: pending } = await supabase
-        .from('friendships')
-        .select('*', { count: 'exact', head: true })
-        .eq('receiver_id', user.id)
-        .eq('status', 'pending')
-      setPendingCount(pending || 0)
+  .from('notifications')
+  .select('*', { count: 'exact', head: true })
+  .eq('user_id', user.id)
+  .eq('read', false)
+setPendingCount(pending || 0)
 
       const { data: myProfile } = await supabase
         .from('profiles')
@@ -154,14 +154,14 @@ export default function FeedPage() {
         <div className="flex items-center justify-between">
           <MissionModal />
           <div className="flex items-center gap-3">
-            <Link href="/profile/friends" className="text-muted hover:text-white press relative">
+            <Link href="/notifications" className="text-muted hover:text-white press relative">
   <Bell size={20} />
   {pendingCount > 0 && (
     <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand rounded-full text-white text-[10px] font-bold flex items-center justify-center">
       {pendingCount}
     </span>
   )}
-</Link>
+</Link>f
           </div>
         </div>
       </header>
