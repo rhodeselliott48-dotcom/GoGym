@@ -414,21 +414,36 @@ function CreateForm() {
                       </div>
                     )}
 
-                    {isStaircasterOrTreadmill ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="field-label">Incline / Setting</label>
-                          <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
-                            {INCLINE_OPTIONS.map(n => <option key={n} value={n}>Level {n}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="field-label">Speed (mph)</label>
-                          <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
-                            {SPEED_OPTIONS.map(s => <option key={s} value={s}>{s} mph</option>)}
-                          </select>
-                        </div>
-                      </div>
+                   {isStaircasterOrTreadmill ? (
+  workoutType === 'Cardio' || workoutType === 'HIIT' ? (
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <label className="field-label">Type</label>
+        <input value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)}
+          placeholder="e.g. Run, Bike, Row" className="field-input" />
+      </div>
+      <div>
+        <label className="field-label">Duration (mins)</label>
+        <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)}
+          placeholder="30" className="field-input" />
+      </div>
+    </div>
+  ) : (
+  <div className="grid grid-cols-2 gap-2">
+    <div>
+      <label className="field-label">Incline / Setting</label>
+      <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
+        {INCLINE_OPTIONS.map(n => <option key={n} value={n}>Level {n}</option>)}
+      </select>
+    </div>
+    <div>
+      <label className="field-label">Speed (mph)</label>
+      <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
+        {SPEED_OPTIONS.map(s => <option key={s} value={s}>{s} mph</option>)}
+      </select>
+    </div>
+  </div>
+  )
                     ) : (
                       <div className="grid grid-cols-3 gap-2">
                         <div>
