@@ -152,18 +152,13 @@ export default function ProfilePage() {
           longest_streak: Math.max(newStreak, p.longest_streak || 0),
         }).eq('id', user.id)
 
-        const [{ data: ownPosts }, { data: mentionedPosts }] = await Promise.all([
-          supabase.from('workout_posts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-          supabase.from('workout_posts').select('*').contains('mentions', [p.username]).order('created_at', { ascending: false }),
-        ])
+        const { data: ownPosts } = await supabase
+  .from('workout_posts')
+  .select('*')
+  .eq('user_id', user.id)
+  .order('created_at', { ascending: false })
 
-        const allPosts = [...(ownPosts || []), ...(mentionedPosts || [])]
-        const seen = new Set()
-        const dedupedPosts = allPosts.filter((post: any) => {
-          if (seen.has(post.id)) return false
-          seen.add(post.id)
-          return true
-        }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+const dedupedPosts = ownPosts || []
 
         const userIds = [...new Set(dedupedPosts.map((post: any) => post.user_id))]
         const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds as string[])
