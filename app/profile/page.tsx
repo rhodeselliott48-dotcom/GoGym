@@ -390,13 +390,13 @@ export default function ProfilePage() {
           ) : (
             <div className="grid grid-cols-4 gap-2 mb-3">
               {earnedBadges.map(b => (
-                <div key={b.id} title={b.desc}
-                  className="flex flex-col items-center gap-1 p-3 rounded-2xl border text-center bg-brand/10 border-brand/30">
-                  <span className="text-2xl">{b.emoji}</span>
-                  <p className="text-white text-[10px] font-semibold leading-tight">{b.label}</p>
-                  <p className="text-brand text-[9px]">{b.category}</p>
-                </div>
-              ))}
+  <div key={b.id} title={b.desc}
+    className="flex flex-col items-center gap-1 p-3 rounded-2xl border text-center bg-brand/10 border-brand/30">
+    <span className="text-2xl">{b.emoji}</span>
+    <p className="text-white text-[10px] font-semibold leading-tight">{b.label}</p>
+    <p className="text-brand text-[9px] leading-tight">{b.desc}</p>
+  </div>
+))}
             </div>
           )}
 
