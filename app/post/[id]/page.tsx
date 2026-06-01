@@ -337,18 +337,29 @@ export default function PostDetailPage() {
   }
 
   async function submitComment() {
-    const supabase = supabaseRef.current
-    if (!newComment.trim() || !currentUserId) return
-    await supabase.from('comments').insert({
-      post_id: id,
-      user_id: currentUserId,
-      content: newComment.trim(),
-      parent_id: replyingTo?.id || null,
+  const supabase = supabaseRef.current
+  if (!newComment.trim() || !currentUserId) return
+  await supabase.from('comments').insert({
+    post_id: id,
+    user_id: currentUserId,
+    content: newComment.trim(),
+    parent_id: replyingTo?.id || null,
+  })
+  // Notify post owner (not yourself)
+  if (post && post.user_id !== currentUserId) {
+    const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', currentUserId).single()
+    await supabase.from('notifications').insert({
+      user_id: post.user_id,
+      sender_id: currentUserId,
+      type: 'comment',
+      content: `@${myProfile?.username} commented on your workout: "${newComment.trim().slice(0, 50)}${newComment.length > 50 ? '...' : ''}"`,
+      read: false,
     })
-    setNewComment('')
-    setReplyingTo(null)
-    await loadComments(currentUserId)
   }
+  setNewComment('')
+  setReplyingTo(null)
+  await loadComments(currentUserId)
+}
 
   async function saveCommentEdit(commentId: string) {
   if (!editingCommentText.trim()) return

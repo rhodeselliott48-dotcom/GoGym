@@ -41,16 +41,27 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
   const profileUsername = cleanUsername(post.profiles?.username || '')
 
   async function toggleLike() {
-    if (!currentUserId) return
-    if (liked) {
-      await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
-      setLikeCount(c => c - 1)
-    } else {
-      await supabase.from('post_likes').insert({ post_id: post.id, user_id: currentUserId })
-      setLikeCount(c => c + 1)
+  if (!currentUserId) return
+  if (liked) {
+    await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
+    setLikeCount(c => c - 1)
+  } else {
+    await supabase.from('post_likes').insert({ post_id: post.id, user_id: currentUserId })
+    setLikeCount(c => c + 1)
+    // Notify post owner (not yourself)
+    if (post.user_id !== currentUserId) {
+      const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', currentUserId).single()
+      await supabase.from('notifications').insert({
+        user_id: post.user_id,
+        sender_id: currentUserId,
+        type: 'like',
+        content: `@${myProfile?.username} liked your workout "${post.title || 'post'}" 🔥`,
+        read: false,
+      })
     }
-    setLiked(!liked)
   }
+  setLiked(!liked)
+}
 
   return (
     <article className="bg-surface-2 rounded-2xl overflow-hidden border border-border">
