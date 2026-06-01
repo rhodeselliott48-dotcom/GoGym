@@ -1,8 +1,8 @@
 'use client'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { WorkoutPost } from '@/lib/types'
-import { Heart, MessageCircle, Clock, MapPin, Dumbbell, ChevronRight, Star, Users, Share2 } from 'lucide-react'
+import { Heart, MessageCircle, Clock, MapPin, Dumbbell, ChevronRight, Star, Users, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
 function timeAgo(date: string) {
@@ -30,35 +30,107 @@ function cleanUsername(username: string) {
   return username.replace('@', '').trim()
 }
 
-function buildShareText(post: WorkoutPost): string {
-  const username = cleanUsername(post.profiles?.username || '')
+// Share card component rendered in DOM then captured
+function ShareCard({ post }: { post: WorkoutPost }) {
   const totalSets = post.exercises?.reduce((sum, e) => sum + (e.sets || 0), 0) || 0
   const prCount = post.exercises?.filter(e => e.is_pr).length || 0
+  const username = cleanUsername(post.profiles?.username || '')
 
-  let text = `💪 ${post.title || 'Workout'} — by @${username}\n`
-  text += `\n🏋️ ${post.workout_type} workout`
-  if (post.mood) text += ` · ${post.mood}`
-  text += '\n'
-  if (post.exercises?.length) text += `\n📊 ${post.exercises.length} exercises · ${totalSets} sets`
-  if (post.duration_minutes) text += ` · ${post.duration_minutes} min`
-  if (prCount > 0) text += `\n⭐ ${prCount} PR${prCount > 1 ? 's' : ''} smashed!`
-  if (post.exercises?.length) {
-    text += '\n\n🔥 Exercises:'
-    post.exercises.slice(0, 5).forEach(e => {
-      text += `\n• ${e.name} — ${e.sets}×${e.reps}${e.weight ? ` @ ${e.weight}lbs` : ''}`
-    })
-    if (post.exercises.length > 5) text += `\n• +${post.exercises.length - 5} more`
-  }
-  if (post.caption) text += `\n\n"${post.caption}"`
-  if (post.gym_location) text += `\n\n📍 ${post.gym_location}`
-  text += `\n\n🚀 Tracked on GoGym — go-gym-tau.vercel.app/post/${post.id}`
-  return text
+  return (
+    <div
+      id="gogym-share-card"
+      style={{
+        width: '360px',
+        background: 'linear-gradient(160deg, #1a1a1a 0%, #0f0f0f 100%)',
+        borderRadius: '24px',
+        padding: '32px 28px',
+        fontFamily: 'system-ui, sans-serif',
+        color: 'white',
+        border: '1px solid #2e2e2e',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+      {/* Red accent line */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: '#E8272A', borderRadius: '24px 24px 0 0' }} />
+
+      {/* Header */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: '6px' }}>
+          {post.workout_type} · {post.mood || 'Workout'}
+        </div>
+        <div style={{ fontSize: '28px', fontWeight: '800', lineHeight: 1.1, color: 'white' }}>
+          {post.title || 'Workout'}
+        </div>
+        <div style={{ fontSize: '13px', color: '#888', marginTop: '6px' }}>
+          @{username}
+          {post.gym_location && ` · 📍 ${post.gym_location}`}
+        </div>
+      </div>
+
+      {/* Stats grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+        {[
+          { label: 'Exercises', value: post.exercises?.length || 0 },
+          { label: 'Total Sets', value: totalSets },
+          { label: 'Duration', value: post.duration_minutes ? `${post.duration_minutes}m` : '—' },
+        ].map(s => (
+          <div key={s.label} style={{ background: '#1e1e1e', borderRadius: '14px', padding: '14px 10px', textAlign: 'center', border: '1px solid #2e2e2e' }}>
+            <div style={{ fontSize: '26px', fontWeight: '800', color: '#E8272A' }}>{s.value}</div>
+            <div style={{ fontSize: '9px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '2px' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* PRs */}
+      {prCount > 0 && (
+        <div style={{ background: '#1a1500', border: '1px solid #3a3000', borderRadius: '12px', padding: '10px 14px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '16px' }}>⭐</span>
+          <span style={{ fontSize: '13px', color: '#fbbf24', fontWeight: '700' }}>{prCount} Personal Record{prCount > 1 ? 's' : ''} Smashed!</span>
+        </div>
+      )}
+
+      {/* Top exercises */}
+      {post.exercises && post.exercises.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          {post.exercises.slice(0, 4).map((ex, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1e1e1e' }}>
+              <span style={{ fontSize: '13px', color: '#ccc' }}>{ex.name}</span>
+              <span style={{ fontSize: '13px', color: '#E8272A', fontWeight: '700' }}>
+                {ex.sets}×{ex.reps}{ex.weight ? ` @ ${ex.weight}lbs` : ''}
+              </span>
+            </div>
+          ))}
+          {post.exercises.length > 4 && (
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '6px' }}>+{post.exercises.length - 4} more exercises</div>
+          )}
+        </div>
+      )}
+
+      {/* Caption */}
+      {post.caption && (
+        <div style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', marginBottom: '20px', borderLeft: '2px solid #E8272A', paddingLeft: '12px' }}>
+          "{post.caption.slice(0, 100)}{post.caption.length > 100 ? '...' : ''}"
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid #2e2e2e' }}>
+        <div style={{ fontSize: '18px', fontWeight: '900', color: 'white', letterSpacing: '0.05em' }}>
+          Go<span style={{ color: '#E8272A' }}>Gym</span>
+        </div>
+        <div style={{ fontSize: '10px', color: '#555', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Lift Together
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost; currentUserId?: string }) {
   const [liked, setLiked] = useState(post.user_has_liked || false)
   const [likeCount, setLikeCount] = useState(post.likes_count || 0)
-  const [shared, setShared] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [capturing, setCapturing] = useState(false)
   const supabase = createClient()
   const colorClass = typeColors[post.workout_type] || typeColors['Other']
   const totalSets = post.exercises?.reduce((sum, e) => sum + (e.sets || 0), 0) || 0
@@ -89,18 +161,36 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
   }
 
   async function handleShare() {
-    const text = buildShareText(post)
-    const url = `https://go-gym-tau.vercel.app/post/${post.id}`
+    setCapturing(true)
     try {
-      if (navigator.share) {
-        await navigator.share({ title: post.title || 'GoGym Workout', text, url })
-      } else {
-        await navigator.clipboard.writeText(`${text}`)
-        setShared(true)
-        setTimeout(() => setShared(false), 2000)
-      }
+      // Dynamic import to keep bundle small
+      const html2canvas = (await import('html2canvas')).default
+      const el = document.getElementById('gogym-share-card')
+      if (!el) return
+      const canvas = await html2canvas(el, { backgroundColor: null, scale: 2 })
+      canvas.toBlob(async blob => {
+        if (!blob) return
+        const file = new File([blob], 'gogym-workout.png', { type: 'image/png' })
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: post.title || 'GoGym Workout',
+            text: `Check out my workout on GoGym!`,
+          })
+        } else {
+          // Fallback — download the image
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'gogym-workout.png'
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+      }, 'image/png')
     } catch (err) {
-      // User cancelled share — that's fine
+      console.error(err)
+    } finally {
+      setCapturing(false)
     }
   }
 
@@ -153,7 +243,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         </div>
       )}
 
-      {/* BIG Photo */}
+      {/* Photo */}
       {post.photo_urls?.length > 0 && (
         <div className="relative w-full mb-3">
           <img src={post.photo_urls[0]} alt="workout" className="w-full object-cover" style={{ maxHeight: '320px', minHeight: '200px' }} />
@@ -167,7 +257,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
 
       {/* Tags */}
       <div className="px-4 pb-3 flex items-center gap-2 flex-wrap">
-        <span className="text-xs bg-surface-3 text-white/50 px-2.5 py-1 rounded-full border border-border">{post.mood}</span>
+        {post.mood && <span className="text-xs bg-surface-3 text-white/50 px-2.5 py-1 rounded-full border border-border">{post.mood}</span>}
         {post.session_type && post.session_type !== 'Solo' && (
           <span className="text-xs bg-brand/10 text-brand px-2.5 py-1 rounded-full border border-brand/20 flex items-center gap-1">
             <Users size={9} />{post.session_type}
@@ -224,9 +314,13 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
             <MessageCircle size={18} strokeWidth={1.8} />
             <span className="text-sm font-semibold">{post.comments_count || 0}</span>
           </Link>
-          <button onClick={handleShare} className="flex items-center gap-1.5 press transition-colors">
-            <Share2 size={17} className={shared ? 'text-brand' : 'text-muted'} strokeWidth={1.8} />
-            {shared && <span className="text-brand text-xs font-semibold">Copied!</span>}
+          {/* iOS-style share arrow */}
+          <button onClick={() => setShowShareModal(true)} className="press text-muted hover:text-white transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
           </button>
         </div>
         <Link href={`/post/${post.id}`} className="flex items-center gap-1 press">
@@ -234,6 +328,35 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
           <ChevronRight size={14} className="text-brand" />
         </Link>
       </div>
+
+      {/* Share modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90"
+          onClick={() => setShowShareModal(false)}>
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowShareModal(false)}
+              className="absolute -top-10 right-0 text-white/60 press p-2">
+              <X size={22} />
+            </button>
+            <ShareCard post={post} />
+            <button
+              onClick={handleShare}
+              disabled={capturing}
+              className="mt-4 w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press disabled:opacity-50 shadow-lg shadow-brand/20 tracking-wide flex items-center justify-center gap-2">
+              {capturing ? 'Generating...' : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16 6 12 2 8 6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                  </svg>
+                  Share Workout
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </article>
   )
 }
