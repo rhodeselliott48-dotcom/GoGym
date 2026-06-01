@@ -1,27 +1,217 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { WorkoutPost, WorkoutType } from '@/lib/types'
-import WorkoutCard from '@/components/WorkoutCard'
 import BottomNav from '@/components/BottomNav'
-import { Search, MapPin, ChevronDown } from 'lucide-react'
+import { Search } from 'lucide-react'
 
-const TYPES: (WorkoutType | 'All')[] = [
+const FILTERS: (WorkoutType | 'All')[] = [
   'All', 'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
   'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
 ]
 
+const TYPE_STYLE: Record<string, { grad: string; tag: string; emoji: string }> = {
+  Push:       { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '👊' },
+  Pull:       { grad: 'from-red-900 to-zinc-900',    tag: 'text-red-300 border-red-700',       emoji: '🤜' },
+  Upper:      { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '💪' },
+  Lower:      { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
+  Legs:       { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
+  'Full Body':{ grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🔥' },
+  Cardio:     { grad: 'from-orange-900 to-zinc-900', tag: 'text-orange-300 border-orange-700', emoji: '🏃' },
+  HIIT:       { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '⚡' },
+  Mobility:   { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '🧘' },
+  Stairmaster:{ grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '🪜' },
+  Treadmill:  { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🏃' },
+  Other:      { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '💪' },
+}
+
+function getStyle(type: string | null) {
+  return TYPE_STYLE[type ?? 'Other'] ?? TYPE_STYLE['Other']
+}
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+function totalSets(exercises: any[]): number {
+  if (!exercises?.length) return 0
+  return exercises.reduce((sum: number, ex: any) => {
+    if (Array.isArray(ex.sets)) return sum + ex.sets.length
+    if (typeof ex.sets === 'number') return sum + ex.sets
+    return sum
+  }, 0)
+}
+
+function Avatar({ post, size = 32 }: { post: WorkoutPost; size?: number }) {
+  const s = `${size}px`
+  if (post.profiles?.avatar_url) {
+    return (
+      <img
+        src={post.profiles.avatar_url}
+        alt={post.profiles.username}
+        style={{ width: s, height: s }}
+        className="rounded-full object-cover border border-zinc-700 flex-shrink-0"
+      />
+    )
+  }
+  const initials = post.profiles?.full_name
+    ? post.profiles.full_name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+    : (post.profiles?.username ?? '??').slice(0, 2).toUpperCase()
+  return (
+    <div
+      style={{ width: s, height: s, fontSize: size * 0.36 }}
+      className="rounded-full bg-red-900 border border-red-800 flex items-center justify-center font-bold text-red-100 flex-shrink-0"
+    >
+      {initials}
+    </div>
+  )
+}
+
+// ── Trending (full-width featured card) ───────────────────────────────────────
+
+function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
+  const s = getStyle(post.workout_type ?? null)
+  const sets = totalSets(post.exercises ?? [])
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-2xl overflow-hidden border border-red-900/60 bg-zinc-900 active:scale-[0.985] transition-transform"
+    >
+      {/* Visual header */}
+      <div className={`bg-gradient-to-br ${s.grad} px-4 pt-4 pb-3 relative`}>
+        <div className="absolute top-3 right-3 flex items-center gap-1 bg-red-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full tracking-wide">
+          🔥 TRENDING
+        </div>
+        <div className="text-4xl mb-2">{s.emoji}</div>
+        <div className="text-white font-black text-xl leading-tight pr-24">
+          {post.title ?? post.caption ?? 'Workout'}
+        </div>
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <Avatar post={post} size={20} />
+          <span className="text-zinc-400 text-xs">@{post.profiles?.username}</span>
+          <span className="text-zinc-600 text-xs">· {timeAgo(post.created_at)}</span>
+          {post.gym_location && (
+            <span className="text-zinc-500 text-xs truncate">· 📍 {post.gym_location}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Stats bar */}
+      <div className="flex items-center border-t border-zinc-800">
+        <StatCell label="EXERCISES" value={post.exercises?.length ?? 0} />
+        <div className="w-px h-8 bg-zinc-800" />
+        <StatCell label="SETS" value={sets} />
+        <div className="w-px h-8 bg-zinc-800" />
+        <StatCell label="DURATION" value={post.duration_minutes ? `${post.duration_minutes}m` : '—'} />
+        <div className="flex-1" />
+        <div className="flex items-center gap-3 pr-4 text-xs text-zinc-500">
+          <span>❤️ {post.likes_count ?? 0}</span>
+          <span>💬 {post.comments_count ?? 0}</span>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function StatCell({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="px-4 py-2.5 text-center">
+      <div className="text-white font-bold text-sm">{value}</div>
+      <div className="text-zinc-500 text-[9px] tracking-widest mt-0.5">{label}</div>
+    </div>
+  )
+}
+
+// ── Grid card (Instagram-style) ───────────────────────────────────────────────
+
+function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
+  const s = getStyle(post.workout_type ?? null)
+  const sets = totalSets(post.exercises ?? [])
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 active:scale-[0.97] transition-transform"
+    >
+      {/* Square visual header */}
+      <div className={`bg-gradient-to-br ${s.grad} aspect-square relative flex flex-col justify-between p-3`}>
+        {post.workout_type && (
+          <div className={`self-end text-[9px] font-bold px-2 py-0.5 rounded-full border bg-black/40 ${s.tag}`}>
+            {post.workout_type.toUpperCase()}
+          </div>
+        )}
+        <div className="text-3xl flex-1 flex items-center justify-center">
+          {s.emoji}
+        </div>
+        <div className="text-white font-bold text-xs leading-tight line-clamp-2">
+          {post.title ?? post.caption ?? 'Workout'}
+        </div>
+      </div>
+
+      {/* Card body */}
+      <div className="px-3 pt-2.5 pb-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Avatar post={post} size={18} />
+          <span className="text-zinc-400 text-[10px] truncate">@{post.profiles?.username}</span>
+          <span className="text-zinc-600 text-[10px] ml-auto flex-shrink-0">{timeAgo(post.created_at)}</span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-white font-semibold">{post.exercises?.length ?? 0}</span>
+          <span className="text-zinc-500">ex</span>
+          <span className="text-zinc-700">·</span>
+          <span className="text-white font-semibold">{sets}</span>
+          <span className="text-zinc-500">sets</span>
+          {post.duration_minutes ? (
+            <>
+              <span className="text-zinc-700">·</span>
+              <span className="text-white font-semibold">{post.duration_minutes}m</span>
+            </>
+          ) : null}
+          <div className="flex-1" />
+          <span className="text-red-500">❤️ {post.likes_count ?? 0}</span>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+// ── Skeletons ─────────────────────────────────────────────────────────────────
+
+function TrendingSkeleton() {
+  return <div className="rounded-2xl h-36 bg-zinc-900 border border-zinc-800 animate-pulse" />
+}
+
+function GridSkeleton() {
+  return (
+    <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 animate-pulse">
+      <div className="aspect-square bg-zinc-800" />
+      <div className="p-3 space-y-2">
+        <div className="h-2 bg-zinc-800 rounded w-3/4" />
+        <div className="h-2 bg-zinc-800 rounded w-1/2" />
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function DiscoverPage() {
+  const router = useRouter()
   const [posts, setPosts] = useState<WorkoutPost[]>([])
-  const [filtered, setFiltered] = useState<WorkoutPost[]>([])
   const [filter, setFilter] = useState<WorkoutType | 'All'>('All')
   const [search, setSearch] = useState('')
-  const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
   const supabaseRef = useRef(createClient())
 
+  // ── Load posts (same logic as original) ──────────────────────────────────
   useEffect(() => {
     const supabase = supabaseRef.current
 
@@ -69,107 +259,134 @@ export default function DiscoverPage() {
           const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
             supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
             supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            user ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+            user
+              ? supabase.from('post_likes').select('id').eq('post_id', post.id).eq('user_id', user.id).maybeSingle()
+              : Promise.resolve({ data: null }),
           ])
           return {
             ...post,
             profiles: profilesMap[post.user_id] || { username: 'unknown', full_name: null, avatar_url: null },
-            likes_count: likes || 0,
-            comments_count: comments || 0,
+            likes_count: likes ?? 0,
+            comments_count: comments ?? 0,
             user_has_liked: !!likedRes?.data,
           }
         }))
 
         setPosts(withCounts as WorkoutPost[])
-        setFiltered(withCounts as WorkoutPost[])
       } else {
         setPosts([])
-        setFiltered([])
       }
       setLoading(false)
     }
+
     load()
   }, [])
 
-  useEffect(() => {
-    let result = posts
-    if (filter !== 'All') result = result.filter(p => p.workout_type === filter)
-    if (location.trim()) {
-      const q = location.toLowerCase()
-      result = result.filter(p =>
-        p.city?.toLowerCase().includes(q) || p.gym_location?.toLowerCase().includes(q)
-      )
-    }
+  // ── Client-side filter + search ───────────────────────────────────────────
+  const filtered = posts.filter(p => {
+    if (filter !== 'All' && p.workout_type !== filter) return false
     if (search.trim()) {
       const q = search.toLowerCase()
-      result = result.filter(p =>
-        p.caption?.toLowerCase().includes(q) ||
+      return (
         p.title?.toLowerCase().includes(q) ||
+        p.caption?.toLowerCase().includes(q) ||
         p.profiles?.username?.toLowerCase().includes(q)
       )
     }
-    setFiltered(result)
-  }, [filter, search, location, posts])
+    return true
+  })
+
+  const trendingPost = filtered.length > 0
+    ? [...filtered].sort((a, b) => (b.likes_count ?? 0) - (a.likes_count ?? 0))[0]
+    : null
+
+  const gridPosts = trendingPost ? filtered.filter(p => p.id !== trendingPost.id) : filtered
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] pb-nav">
-      <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3">
-        <h2 className="font-display text-3xl tracking-wide mb-3">Discover</h2>
+    <div className="min-h-screen bg-[#0f0f0f] text-white pb-24">
+
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-sm border-b border-zinc-900 px-4 pt-12 pb-3">
+        <h1 className="font-display text-3xl tracking-wide mb-3">Discover</h1>
 
         {/* Search */}
-        <div className="relative mb-2">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search workouts or people..."
-            className="w-full bg-surface-2 border border-border rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-muted text-sm" />
+        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 mb-3">
+          <Search size={15} className="text-zinc-500 flex-shrink-0" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search workouts or people..."
+            className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="text-zinc-500 text-xs px-1">✕</button>
+          )}
         </div>
 
-        {/* Location + Type dropdown row */}
-        <div className="flex gap-2 mb-1">
-          <div className="relative flex-1">
-            <MapPin size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-            <input value={location} onChange={e => setLocation(e.target.value)} placeholder="City or gym..."
-              className="w-full bg-surface-2 border border-border rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-muted text-sm" />
-          </div>
-
-          {/* Type dropdown */}
-          <div className="relative">
-            <button onClick={() => setDropdownOpen(!dropdownOpen)}
-              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all press whitespace-nowrap
-                ${filter !== 'All' ? 'bg-brand text-white border-brand' : 'bg-surface-2 text-muted border-border'}`}>
-              {filter === 'All' ? 'Type' : filter}
-              <ChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+        {/* Filter chips */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {FILTERS.map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`flex-shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors ${
+                filter === f
+                  ? 'bg-red-600 border-red-600 text-white'
+                  : 'bg-transparent border-zinc-700 text-zinc-400'
+              }`}
+            >
+              {f}
             </button>
-
-            {dropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-44 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden z-50 shadow-xl">
-                {TYPES.map(t => (
-                  <button key={t} onClick={() => { setFilter(t); setDropdownOpen(false) }}
-                    className={`w-full text-left px-4 py-2.5 text-sm transition-all press
-                      ${filter === t ? 'bg-brand text-white font-semibold' : 'text-white/70 hover:bg-surface-3'}`}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          ))}
         </div>
       </header>
 
-      <main className="px-4 py-4 space-y-4 stagger">
+      {/* ── Content ── */}
+      <main className="px-4 pt-4 space-y-5">
+
+        {/* Trending card */}
         {loading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-surface-2 rounded-2xl h-40 animate-pulse border border-border" />
-          ))
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-5xl mb-4">🔍</p>
-            <p className="text-white font-display text-2xl">Nothing here</p>
-            <p className="text-muted text-sm mt-2">No posts from other users yet</p>
+          <TrendingSkeleton />
+        ) : trendingPost ? (
+          <TrendingCard post={trendingPost} onClick={() => router.push(`/post/${trendingPost.id}`)} />
+        ) : null}
+
+        {/* Section label */}
+        {!loading && gridPosts.length > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-zinc-500 tracking-widest uppercase">
+              {filter === 'All' ? 'Recent workouts' : filter}
+            </span>
+            <span className="text-[11px] text-zinc-600">{gridPosts.length} posts</span>
           </div>
-        ) : (
-          filtered.map(post => <WorkoutCard key={post.id} post={post} currentUserId={currentUserId ?? undefined} />)
         )}
+
+        {/* Grid */}
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => <GridSkeleton key={i} />)}
+          </div>
+        ) : gridPosts.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {gridPosts.map(post => (
+              <GridCard key={post.id} post={post} onClick={() => router.push(`/post/${post.id}`)} />
+            ))}
+          </div>
+        ) : !trendingPost ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-5xl mb-4">🔍</p>
+            <p className="text-white font-display text-2xl">
+              {search ? 'No results' : 'Nothing here yet'}
+            </p>
+            <p className="text-zinc-500 text-sm mt-2">
+              {search ? 'Try a different search or filter' : 'No posts from other users yet'}
+            </p>
+          </div>
+        ) : null}
+
       </main>
+
       <BottomNav />
     </div>
   )
