@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { WorkoutPost } from '@/lib/types'
-import { Heart, MessageCircle, Clock, MapPin, Dumbbell, ChevronRight, Star, Users } from 'lucide-react'
+import { Heart, MessageCircle, Clock, MapPin, Dumbbell, ChevronRight, Star, Users, Share2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
 function timeAgo(date: string) {
@@ -30,9 +30,35 @@ function cleanUsername(username: string) {
   return username.replace('@', '').trim()
 }
 
+function buildShareText(post: WorkoutPost): string {
+  const username = cleanUsername(post.profiles?.username || '')
+  const totalSets = post.exercises?.reduce((sum, e) => sum + (e.sets || 0), 0) || 0
+  const prCount = post.exercises?.filter(e => e.is_pr).length || 0
+
+  let text = `💪 ${post.title || 'Workout'} — by @${username}\n`
+  text += `\n🏋️ ${post.workout_type} workout`
+  if (post.mood) text += ` · ${post.mood}`
+  text += '\n'
+  if (post.exercises?.length) text += `\n📊 ${post.exercises.length} exercises · ${totalSets} sets`
+  if (post.duration_minutes) text += ` · ${post.duration_minutes} min`
+  if (prCount > 0) text += `\n⭐ ${prCount} PR${prCount > 1 ? 's' : ''} smashed!`
+  if (post.exercises?.length) {
+    text += '\n\n🔥 Exercises:'
+    post.exercises.slice(0, 5).forEach(e => {
+      text += `\n• ${e.name} — ${e.sets}×${e.reps}${e.weight ? ` @ ${e.weight}lbs` : ''}`
+    })
+    if (post.exercises.length > 5) text += `\n• +${post.exercises.length - 5} more`
+  }
+  if (post.caption) text += `\n\n"${post.caption}"`
+  if (post.gym_location) text += `\n\n📍 ${post.gym_location}`
+  text += `\n\n🚀 Tracked on GoGym — go-gym-tau.vercel.app/post/${post.id}`
+  return text
+}
+
 export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost; currentUserId?: string }) {
   const [liked, setLiked] = useState(post.user_has_liked || false)
   const [likeCount, setLikeCount] = useState(post.likes_count || 0)
+  const [shared, setShared] = useState(false)
   const supabase = createClient()
   const colorClass = typeColors[post.workout_type] || typeColors['Other']
   const totalSets = post.exercises?.reduce((sum, e) => sum + (e.sets || 0), 0) || 0
@@ -41,32 +67,47 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
   const profileUsername = cleanUsername(post.profiles?.username || '')
 
   async function toggleLike() {
-  if (!currentUserId) return
-  if (liked) {
-    await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
-    setLikeCount(c => c - 1)
-  } else {
-    await supabase.from('post_likes').insert({ post_id: post.id, user_id: currentUserId })
-    setLikeCount(c => c + 1)
-    // Notify post owner (not yourself)
-    if (post.user_id !== currentUserId) {
-      const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', currentUserId).single()
-      await supabase.from('notifications').insert({
-        user_id: post.user_id,
-        sender_id: currentUserId,
-        type: 'like',
-        content: `@${myProfile?.username} liked your workout "${post.title || 'post'}" 🔥`,
-        read: false,
-      })
+    if (!currentUserId) return
+    if (liked) {
+      await supabase.from('post_likes').delete().eq('post_id', post.id).eq('user_id', currentUserId)
+      setLikeCount(c => c - 1)
+    } else {
+      await supabase.from('post_likes').insert({ post_id: post.id, user_id: currentUserId })
+      setLikeCount(c => c + 1)
+      if (post.user_id !== currentUserId) {
+        const { data: myProfile } = await supabase.from('profiles').select('username').eq('id', currentUserId).single()
+        await supabase.from('notifications').insert({
+          user_id: post.user_id,
+          sender_id: currentUserId,
+          type: 'like',
+          content: `@${myProfile?.username} liked your workout "${post.title || 'post'}" 🔥`,
+          read: false,
+        })
+      }
+    }
+    setLiked(!liked)
+  }
+
+  async function handleShare() {
+    const text = buildShareText(post)
+    const url = `https://go-gym-tau.vercel.app/post/${post.id}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: post.title || 'GoGym Workout', text, url })
+      } else {
+        await navigator.clipboard.writeText(`${text}`)
+        setShared(true)
+        setTimeout(() => setShared(false), 2000)
+      }
+    } catch (err) {
+      // User cancelled share — that's fine
     }
   }
-  setLiked(!liked)
-}
 
   return (
     <article className="bg-surface-2 rounded-2xl overflow-hidden border border-border">
 
-      {/* Header — avatar + name + time */}
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3">
         <Link href={`/profile/${profileUsername}`}>
           <div className="w-9 h-9 rounded-full bg-surface-3 border border-border overflow-hidden flex-shrink-0">
@@ -112,15 +153,10 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         </div>
       )}
 
-      {/* BIG Photo — full width, prominent */}
+      {/* BIG Photo */}
       {post.photo_urls?.length > 0 && (
         <div className="relative w-full mb-3">
-          <img
-            src={post.photo_urls[0]}
-            alt="workout"
-            className="w-full object-cover"
-            style={{ maxHeight: '320px', minHeight: '200px' }}
-          />
+          <img src={post.photo_urls[0]} alt="workout" className="w-full object-cover" style={{ maxHeight: '320px', minHeight: '200px' }} />
           {post.photo_urls.length > 1 && (
             <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs font-semibold px-2 py-1 rounded-full">
               +{post.photo_urls.length - 1} more
@@ -129,7 +165,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         </div>
       )}
 
-      {/* Tags row */}
+      {/* Tags */}
       <div className="px-4 pb-3 flex items-center gap-2 flex-wrap">
         <span className="text-xs bg-surface-3 text-white/50 px-2.5 py-1 rounded-full border border-border">{post.mood}</span>
         {post.session_type && post.session_type !== 'Solo' && (
@@ -145,7 +181,7 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
         ))}
       </div>
 
-      {/* Stats bar */}
+      {/* Stats */}
       {(post.exercises?.length > 0 || post.duration_minutes) && (
         <div className="mx-4 mb-3 bg-surface-3 rounded-xl px-4 py-2.5 flex items-center gap-5 border border-border">
           {post.exercises?.length > 0 && (
@@ -188,6 +224,10 @@ export default function WorkoutCard({ post, currentUserId }: { post: WorkoutPost
             <MessageCircle size={18} strokeWidth={1.8} />
             <span className="text-sm font-semibold">{post.comments_count || 0}</span>
           </Link>
+          <button onClick={handleShare} className="flex items-center gap-1.5 press transition-colors">
+            <Share2 size={17} className={shared ? 'text-brand' : 'text-muted'} strokeWidth={1.8} />
+            {shared && <span className="text-brand text-xs font-semibold">Copied!</span>}
+          </button>
         </div>
         <Link href={`/post/${post.id}`} className="flex items-center gap-1 press">
           <span className="text-brand text-xs font-semibold">View details</span>
