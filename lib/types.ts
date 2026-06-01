@@ -24,8 +24,10 @@ export interface Profile {
   favorite_exercises: string[] | null
   city: string | null
   created_at: string
+  current_streak?: number
+  longest_streak?: number
+  last_logged_at?: string
 }
-
 export interface WorkoutPost {
   id: string
   user_id: string

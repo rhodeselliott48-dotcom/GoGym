@@ -201,7 +201,7 @@ export default function PublicProfilePage() {
     { label: 'Workouts', value: posts.length },
     { label: 'PRs', value: totalPRs },
     { label: 'Friends', value: friendCount },
-    { label: 'Streak', value: profile.current_streak > 0 ? `${profile.current_streak}🔥` : '0' },
+    { label: 'Streak', value: (profile.current_streak ?? 0) > 0 ? `${profile.current_streak}🔥` : '0' },
   ].map(s => (
             <div key={s.label} className="bg-surface-2 rounded-2xl border border-border p-3 text-center">
               <p className="font-display text-2xl text-brand">{s.value}</p>
