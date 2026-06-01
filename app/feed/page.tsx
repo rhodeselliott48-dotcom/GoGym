@@ -65,15 +65,18 @@ export default function FeedPage() {
 
       const todayStart = new Date()
       todayStart.setHours(0, 0, 0, 0)
-      const { count: todayCount } = await supabase
-        .from('workout_posts')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('created_at', todayStart.toISOString())
+      const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+const { count: recentCount } = await supabase
+  .from('workout_posts')
+  .select('*', { count: 'exact', head: true })
+  .eq('user_id', user.id)
+  .gte('created_at', last24h.toISOString())
 
-      if (!todayCount || todayCount === 0) {
-        setTimeout(() => setShowNudge(true), 2500)
-      }
+const nudgeShown = sessionStorage.getItem('gogym_nudge_shown')
+if ((!recentCount || recentCount === 0) && !nudgeShown) {
+  sessionStorage.setItem('gogym_nudge_shown', '1')
+  setTimeout(() => setShowNudge(true), 2500)
+}
 
       if (friendIds.length === 0 && !myProfile) {
         setPosts([])
