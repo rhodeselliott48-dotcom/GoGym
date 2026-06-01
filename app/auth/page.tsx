@@ -45,10 +45,10 @@ export default function AuthPage() {
     <div className="min-h-screen bg-[#0f0f0f] flex flex-col px-6 py-12">
       {/* Logo — no bubble, no GoGym text */}
       <div className="text-center pt-10 pb-2">
-        <div className="flex justify-center mb-3">
-          <img src="/logo.png" alt="GoGym" className="w-24 h-24 rounded-3xl" />
-        </div>
-        <p className="text-light-gray/60 text-sm mt-1 tracking-widest uppercase font-medium">Lift Together</p>
+        <div className="flex justify-center mb-4">
+  <img src="/logo.png" alt="GoGym" className="w-36 h-36 rounded-3xl" />
+</div>
+<p className="text-light-gray/60 text-lg mt-2 tracking-widest uppercase font-medium">Lift Together</p>
       </div>
 
       <div className="flex-1 flex flex-col justify-center mt-8">

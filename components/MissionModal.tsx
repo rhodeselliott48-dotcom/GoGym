@@ -8,8 +8,8 @@ export default function MissionModal() {
   return (
     <>
       <button onClick={() => setOpen(true)} className="press text-left flex items-center gap-2">
-        <Image src="/logo.png" alt="GoGym" width={36} height={36} className="rounded-xl" />
-        <p className="text-light-gray/50 text-[10px] tracking-widest uppercase font-medium">Lift Together</p>
+        <Image src="/logo.png" alt="GoGym" width={44} height={44} className="rounded-xl" />
+<p className="text-light-gray/50 text-xs tracking-widest uppercase font-medium">Lift Together</p>
       </button>
       {open && (
         <div className="modal-overlay" onClick={() => setOpen(false)}>
