@@ -43,22 +43,28 @@ export default function PublicProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id ?? null)
 
-      const decodedUsername = decodeURIComponent(username).replace('@', '').toLowerCase().trim()
+      const decodedUsername = decodeURIComponent(username)
+  .replace('@', '')
+  .toLowerCase()
+  .trim()
 
-      let { data: p } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', decodedUsername)
-        .maybeSingle()
+// Try exact, then without special chars, then ilike
+let { data: p } = await supabase
+  .from('profiles')
+  .select('*')
+  .eq('username', decodedUsername)
+  .maybeSingle()
 
-      if (!p) {
-        const { data: fallback } = await supabase
-          .from('profiles')
-          .select('*')
-          .ilike('username', decodedUsername)
-          .maybeSingle()
-        p = fallback
-      }
+if (!p) {
+  const { data: fallback } = await supabase
+    .from('profiles')
+    .select('*')
+    .ilike('username', `%${decodedUsername}%`)
+    .maybeSingle()
+  p = fallback
+}
+
+if (!p) { setLoading(false); return }
 
       if (!p) { setLoading(false); return }
       setProfile(p)
