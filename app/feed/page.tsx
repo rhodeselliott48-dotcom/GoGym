@@ -5,8 +5,16 @@ import { WorkoutPost } from '@/lib/types'
 import WorkoutCard from '@/components/WorkoutCard'
 import BottomNav from '@/components/BottomNav'
 import MissionModal from '@/components/MissionModal'
-import { Bell, Users } from 'lucide-react'
+import { Bell, X, Zap } from 'lucide-react'
 import Link from 'next/link'
+
+const NUDGES = [
+  { emoji: '💪', title: 'Time to grind.', sub: 'You haven\'t logged today. Let\'s fix that.' },
+  { emoji: '🔥', title: 'Streak on the line.', sub: 'Log a workout to keep your streak alive.' },
+  { emoji: '😤', title: 'Your friends are lifting.', sub: 'Don\'t let them get ahead. Log now.' },
+  { emoji: '⚡', title: 'No workout yet today.', sub: 'Even 20 minutes counts. Let\'s go.' },
+  { emoji: '🏆', title: 'Champions show up daily.', sub: 'Log your workout and stay on top.' },
+]
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<WorkoutPost[]>([])
@@ -15,6 +23,8 @@ export default function FeedPage() {
   const [activeToday, setActiveToday] = useState<{username: string, id: string}[]>([])
   const [hasFriends, setHasFriends] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
+  const [showNudge, setShowNudge] = useState(false)
+  const [nudge] = useState(() => NUDGES[Math.floor(Math.random() * NUDGES.length)])
   const supabaseRef = useRef(createClient())
 
   useEffect(() => {
@@ -25,7 +35,6 @@ export default function FeedPage() {
       setCurrentUserId(user?.id ?? null)
       if (!user) { setLoading(false); return }
 
-      // Check pending friend requests
       const { count: pending } = await supabase
         .from('friendships')
         .select('*', { count: 'exact', head: true })
@@ -33,14 +42,12 @@ export default function FeedPage() {
         .eq('status', 'pending')
       setPendingCount(pending || 0)
 
-      // Get current user's profile for username
       const { data: myProfile } = await supabase
         .from('profiles')
         .select('username')
         .eq('id', user.id)
         .single()
 
-      // Get friends list
       const { data: friendships } = await supabase
         .from('friendships')
         .select('user_id, friend_id')
@@ -56,13 +63,26 @@ export default function FeedPage() {
         })
       }
 
+      // Check if user logged a workout today
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const { count: todayCount } = await supabase
+        .from('workout_posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', todayStart.toISOString())
+
+      if (!todayCount || todayCount === 0) {
+        // Show nudge after 2.5 seconds
+        setTimeout(() => setShowNudge(true), 2500)
+      }
+
       if (friendIds.length === 0 && !myProfile) {
         setPosts([])
         setLoading(false)
         return
       }
 
-      // Fetch posts from friends
       const { data: friendPosts } = friendIds.length > 0 ? await supabase
         .from('workout_posts')
         .select('*')
@@ -70,7 +90,6 @@ export default function FeedPage() {
         .order('created_at', { ascending: false })
         .limit(30) : { data: [] }
 
-      // Fetch posts where current user is mentioned
       const { data: mentionedPosts } = myProfile ? await supabase
         .from('workout_posts')
         .select('*')
@@ -78,7 +97,6 @@ export default function FeedPage() {
         .order('created_at', { ascending: false })
         .limit(30) : { data: [] }
 
-      // Merge and deduplicate
       const allPosts = [...(friendPosts || []), ...(mentionedPosts || [])]
       const seen = new Set()
       const dedupedPosts = allPosts.filter((p: any) => {
@@ -193,6 +211,38 @@ export default function FeedPage() {
           ))
         )}
       </main>
+
+      {/* Daily nudge */}
+      {showNudge && (
+        <div className="fixed inset-0 z-[60] flex items-end" onClick={() => setShowNudge(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="relative w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl px-5 pt-4 pb-10 animate-slide-up"
+            onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-border rounded-full mx-auto mb-4" />
+            <button onClick={() => setShowNudge(false)}
+              className="absolute top-4 right-4 text-muted press p-1">
+              <X size={18} />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-4xl">{nudge.emoji}</span>
+              <div>
+                <p className="font-display text-2xl text-white tracking-wide">{nudge.title}</p>
+                <p className="text-muted text-sm">{nudge.sub}</p>
+              </div>
+            </div>
+            <Link href="/create"
+              onClick={() => setShowNudge(false)}
+              className="w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide flex items-center justify-center gap-2">
+              <Zap size={18} /> LOG WORKOUT NOW
+            </Link>
+            <button onClick={() => setShowNudge(false)}
+              className="w-full mt-3 py-2 text-muted text-sm font-semibold press">
+              Maybe later
+            </button>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   )
