@@ -17,6 +17,7 @@ export default function FriendsPage() {
   const [friends, setFriends] = useState<Friend[]>([])
   const [sentRequests, setSentRequests] = useState<string[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const supabaseRef = useRef(createClient())
   const router = useRouter()
@@ -29,7 +30,13 @@ export default function FriendsPage() {
       if (!user) { router.push('/auth'); return }
       setCurrentUserId(user.id)
 
-      // Get pending requests sent TO me
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single()
+      setCurrentUsername(myProfile?.username ?? null)
+
       const { data: reqs } = await supabase
         .from('friendships')
         .select('id, sender_id')
@@ -56,7 +63,6 @@ export default function FriendsPage() {
         setPending(pendingWithProfiles)
       }
 
-      // Get my accepted friends
       const { data: myFriends } = await supabase
         .from('friendships')
         .select('user_id, friend_id')
@@ -69,7 +75,6 @@ export default function FriendsPage() {
         if (fp) setFriends(fp)
       }
 
-      // Get requests I sent (pending)
       const { data: sent } = await supabase
         .from('friendships')
         .select('receiver_id')
@@ -103,6 +108,14 @@ export default function FriendsPage() {
       friend_id: receiverId,
       status: 'pending'
     })
+    // Send notification to receiver
+    await supabase.from('notifications').insert({
+      user_id: receiverId,
+      sender_id: currentUserId!,
+      type: 'friend_request',
+      content: `@${currentUsername} sent you a friend request!`,
+      read: false,
+    })
     setSentRequests(prev => [...prev, receiverId])
   }
 
@@ -114,6 +127,14 @@ export default function FriendsPage() {
         user_id: senderId,
         friend_id: currentUserId!
       }).eq('id', id)
+      // Notify the sender their request was accepted
+      await supabase.from('notifications').insert({
+        user_id: senderId,
+        sender_id: currentUserId!,
+        type: 'friend_accepted',
+        content: `@${currentUsername} accepted your friend request! 🤝`,
+        read: false,
+      })
       const { data: p } = await supabase.from('profiles').select('id, username, full_name, avatar_url').eq('id', senderId).single()
       if (p) setFriends(prev => [...prev, p])
     } else {
@@ -150,7 +171,6 @@ export default function FriendsPage() {
       </header>
 
       <div className="px-4 py-5 space-y-6">
-        {/* Search */}
         <div>
           <p className="text-xs text-muted uppercase tracking-widest font-semibold mb-2">Find People</p>
           <div className="flex gap-2">
@@ -195,7 +215,6 @@ export default function FriendsPage() {
           )}
         </div>
 
-        {/* Pending requests */}
         {pending.length > 0 && (
           <div>
             <p className="text-xs text-muted uppercase tracking-widest font-semibold mb-2">
@@ -221,7 +240,6 @@ export default function FriendsPage() {
           </div>
         )}
 
-        {/* Friends list */}
         <div>
           <p className="text-xs text-muted uppercase tracking-widest font-semibold mb-2">
             Your Friends ({friends.length})
