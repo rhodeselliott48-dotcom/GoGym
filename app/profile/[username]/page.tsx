@@ -97,12 +97,11 @@ if (!p) { setLoading(false); return }
       setFriendCount(fc || 0)
 
       // Fetch posts — filter by is_public if not a friend or own profile
-      const [{ data: ownPosts }, { data: mentionedPosts }] = await Promise.all([
-        friendshipAccepted
-          ? supabase.from('workout_posts').select('*').eq('user_id', p.id).order('created_at', { ascending: false })
-          : supabase.from('workout_posts').select('*').eq('user_id', p.id).eq('is_public', true).order('created_at', { ascending: false }),
-        supabase.from('workout_posts').select('*').contains('mentions', [p.username]).order('created_at', { ascending: false }),
-      ])
+      const [{ data: ownPosts }] = await Promise.all([
+  supabase.from('workout_posts').select('*').eq('user_id', p.id).order('created_at', { ascending: false }),
+])
+
+const allPosts = [...(ownPosts || [])]
 
       const allPosts = [...(ownPosts || []), ...(mentionedPosts || [])]
       const seen = new Set()
