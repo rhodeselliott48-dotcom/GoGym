@@ -19,7 +19,6 @@ const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
   { value: 'Group', label: '🏟️ Group Session', desc: 'Squad workout (2+ people)' },
   { value: 'Live',  label: '📡 Live Session',  desc: 'Coming soon' },
 ]
-const CARDIO_TYPES: WorkoutType[] = ['Stairmaster', 'Treadmill', 'Cardio', 'HIIT']
 const SET_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20','25','30','AMRAP','Failure']
 const INCLINE_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15']
@@ -60,9 +59,9 @@ function CreateForm() {
   const router = useRouter()
   const supabase = createClient()
 
-  const isStaircasterOrTreadmill = workoutType === 'Stairmaster' || workoutType === 'Treadmill'
+  const isMachine = workoutType === 'Stairmaster' || workoutType === 'Treadmill'
+  const isCardioType = workoutType === 'Cardio' || workoutType === 'HIIT'
 
-  // Pick up photos from BottomNav
   useEffect(() => {
     if (!hasPhotos) return
     function onPhotos(e: Event) {
@@ -76,35 +75,11 @@ function CreateForm() {
     return () => window.removeEventListener('gogym_photos', onPhotos)
   }, [hasPhotos])
 
-  // Load draft on mount
   useEffect(() => {
-    async function loadDraft() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('post_drafts')
-        .select('data')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (data?.data) {
-        const d = data.data
-        if (d.title) setTitle(d.title)
-        if (d.workoutType) setWorkoutType(d.workoutType)
-        if (d.mood) setMood(d.mood)
-        if (d.duration) setDuration(d.duration)
-        if (d.gymLocation) setGymLocation(d.gymLocation)
-        if (d.city) setCity(d.city)
-        if (d.exercises?.length) setExercises(d.exercises)
-        if (d.caption) setCaption(d.caption)
-        if (typeof d.isPublic === 'boolean') setIsPublic(d.isPublic)
-        if (d.sessionType) setSessionType(d.sessionType)
-      }
-    }
     loadDraft()
     loadPresets()
   }, [])
 
-  // Auto-save draft every 2 seconds when title exists
   useEffect(() => {
     if (!title) return
     const timer = setTimeout(async () => {
@@ -120,14 +95,29 @@ function CreateForm() {
     return () => clearTimeout(timer)
   }, [title, workoutType, mood, duration, gymLocation, city, exercises, caption, isPublic, sessionType])
 
+  async function loadDraft() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase.from('post_drafts').select('data').eq('user_id', user.id).maybeSingle()
+    if (data?.data) {
+      const d = data.data
+      if (d.title) setTitle(d.title)
+      if (d.workoutType) setWorkoutType(d.workoutType)
+      if (d.mood) setMood(d.mood)
+      if (d.duration) setDuration(d.duration)
+      if (d.gymLocation) setGymLocation(d.gymLocation)
+      if (d.city) setCity(d.city)
+      if (d.exercises?.length) setExercises(d.exercises)
+      if (d.caption) setCaption(d.caption)
+      if (typeof d.isPublic === 'boolean') setIsPublic(d.isPublic)
+      if (d.sessionType) setSessionType(d.sessionType)
+    }
+  }
+
   async function loadPresets() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase
-      .from('preset_workouts')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('preset_workouts').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
     if (data) setPresets(data)
   }
 
@@ -142,7 +132,6 @@ function CreateForm() {
   function toggleNotes(i: number) {
     setExpandedNotes(prev => ({ ...prev, [i]: !prev[i] }))
   }
-
   function loadPreset(preset: any) {
     setWorkoutType(preset.workout_type)
     setExercises(preset.exercises)
@@ -150,7 +139,7 @@ function CreateForm() {
   }
 
   async function savePreset() {
-    if (!presetName.trim() || exercises.length === 0) return
+    if (!presetName.trim()) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
@@ -209,12 +198,66 @@ function CreateForm() {
     })
 
     if (postError) { setError('Post failed: ' + postError.message); setLoading(false); return }
-
-    // Clear draft after posting
     await supabase.from('post_drafts').delete().eq('user_id', user.id)
-
     setLoading(false)
     setShowPresetSave(true)
+  }
+
+  function renderExerciseInputs(i: number, ex: Exercise) {
+    if (isMachine) {
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="field-label">Incline / Setting</label>
+            <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
+              {INCLINE_OPTIONS.map(n => <option key={n} value={n}>Level {n}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Speed (mph)</label>
+            <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
+              {SPEED_OPTIONS.map(s => <option key={s} value={s}>{s} mph</option>)}
+            </select>
+          </div>
+        </div>
+      )
+    }
+    if (isCardioType) {
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="field-label">Type</label>
+            <input value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)}
+              placeholder="e.g. Run, Bike, Row" className="field-input" />
+          </div>
+          <div>
+            <label className="field-label">Duration (mins)</label>
+            <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)}
+              placeholder="30" className="field-input" />
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="field-label">Sets</label>
+          <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
+            {SET_OPTIONS.map(n => <option key={n} value={n}>{n} sets</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="field-label">Reps</label>
+          <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
+            {REP_OPTIONS.map(r => <option key={r} value={r}>{r} reps</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="field-label">Weight (lbs)</label>
+          <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)} placeholder="135" className="field-input" />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -247,7 +290,6 @@ function CreateForm() {
         </div>
       </header>
 
-      {/* Presets dropdown */}
       {showPresets && (
         <div className="mx-4 mt-2 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden shadow-xl">
           <p className="text-xs text-muted uppercase tracking-widest font-semibold px-4 py-3 border-b border-border">Your Presets</p>
@@ -263,11 +305,9 @@ function CreateForm() {
 
       <div className="px-4 py-6 space-y-6">
 
-        {/* STEP 1 */}
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
-
             <div className="flex gap-2">
               <button onClick={() => setIsPublic(true)}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
@@ -280,12 +320,10 @@ function CreateForm() {
                 <Lock size={15} /> Friends Only
               </button>
             </div>
-
             <div>
               <label className="field-label">Workout Title *</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete 💪" className="field-input" />
+              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete" className="field-input" />
             </div>
-
             <div>
               <label className="field-label">Workout Type</label>
               <div className="relative">
@@ -308,7 +346,6 @@ function CreateForm() {
                 )}
               </div>
             </div>
-
             <div>
               <label className="field-label">Session Type</label>
               <div className="space-y-2">
@@ -327,7 +364,6 @@ function CreateForm() {
                 ))}
               </div>
             </div>
-
             {sessionType === 'Joint' && (
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-2">
                 <label className="field-label">Partner Username (1 only)</label>
@@ -346,7 +382,6 @@ function CreateForm() {
                 </div>
               </div>
             )}
-
             <div>
               <label className="field-label">Mood</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -359,7 +394,6 @@ function CreateForm() {
                 ))}
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Duration (mins)</label>
@@ -380,15 +414,14 @@ function CreateForm() {
           </div>
         )}
 
-        {/* STEP 2 */}
         {step === 2 && (
           <div className="space-y-4 animate-fade-up">
             <SectionLabel>
-              {isStaircasterOrTreadmill ? `${workoutType} Session` : 'Exercises'}
+              {isMachine ? `${workoutType} Session` : isCardioType ? 'Cardio Session' : 'Exercises'}
             </SectionLabel>
 
             {exercises.map((ex, i) => {
-              const info = ex.name ? findExercise(ex.name) : null
+              const info = !isCardioType && !isMachine && ex.name ? findExercise(ex.name) : null
               const notesOpen = expandedNotes[i] || false
               return (
                 <div key={i} className="bg-surface-2 rounded-2xl border border-border overflow-hidden">
@@ -396,12 +429,18 @@ function CreateForm() {
                     <div className="flex items-center gap-2">
                       <span className="text-brand font-display text-lg w-6">{i+1}</span>
                       <input value={ex.name} onChange={e => updateExercise(i, 'name', e.target.value)}
-                        placeholder={isStaircasterOrTreadmill ? `e.g. ${workoutType} interval ${i+1}` : 'Exercise name...'}
+                        placeholder={
+                          isMachine ? `${workoutType} interval ${i+1}` :
+                          isCardioType ? 'e.g. Morning Run, HIIT Circuit' :
+                          'Exercise name...'
+                        }
                         className="flex-1 field-input" />
-                      <button onClick={() => updateExercise(i, 'is_pr', !ex.is_pr)}
-                        className={`p-2 rounded-xl border press transition-all ${ex.is_pr ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400' : 'bg-surface-3 border-border text-muted'}`}>
-                        <Star size={16} className={ex.is_pr ? 'fill-yellow-400' : ''} />
-                      </button>
+                      {!isCardioType && !isMachine && (
+                        <button onClick={() => updateExercise(i, 'is_pr', !ex.is_pr)}
+                          className={`p-2 rounded-xl border press transition-all ${ex.is_pr ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400' : 'bg-surface-3 border-border text-muted'}`}>
+                          <Star size={16} className={ex.is_pr ? 'fill-yellow-400' : ''} />
+                        </button>
+                      )}
                       {exercises.length > 1 && (
                         <button onClick={() => removeExercise(i)} className="p-2 text-muted hover:text-red-400 press"><Trash2 size={16} /></button>
                       )}
@@ -414,58 +453,9 @@ function CreateForm() {
                       </div>
                     )}
 
-                   {isStaircasterOrTreadmill ? (
-  workoutType === 'Cardio' || workoutType === 'HIIT' ? (
-    <div className="grid grid-cols-2 gap-2">
-      <div>
-        <label className="field-label">Type</label>
-        <input value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)}
-          placeholder="e.g. Run, Bike, Row" className="field-input" />
-      </div>
-      <div>
-        <label className="field-label">Duration (mins)</label>
-        <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)}
-          placeholder="30" className="field-input" />
-      </div>
-    </div>
-  ) : (
-  <div className="grid grid-cols-2 gap-2">
-    <div>
-      <label className="field-label">Incline / Setting</label>
-      <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
-        {INCLINE_OPTIONS.map(n => <option key={n} value={n}>Level {n}</option>)}
-      </select>
-    </div>
-    <div>
-      <label className="field-label">Speed (mph)</label>
-      <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
-        {SPEED_OPTIONS.map(s => <option key={s} value={s}>{s} mph</option>)}
-      </select>
-    </div>
-  </div>
-  )
-                    ) : (
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="field-label">Sets</label>
-                          <select value={ex.sets} onChange={e => updateExercise(i, 'sets', parseInt(e.target.value))} className="field-input">
-                            {SET_OPTIONS.map(n => <option key={n} value={n}>{n} sets</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="field-label">Reps</label>
-                          <select value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className="field-input">
-                            {REP_OPTIONS.map(r => <option key={r} value={r}>{r} reps</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="field-label">Weight (lbs)</label>
-                          <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)} placeholder="135" className="field-input" />
-                        </div>
-                      </div>
-                    )}
+                    {renderExerciseInputs(i, ex)}
 
-                    {ex.is_pr && (
+                    {!isCardioType && !isMachine && ex.is_pr && (
                       <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-2">
                         <Star size={12} className="text-yellow-400 fill-yellow-400" />
                         <p className="text-yellow-400 text-xs font-semibold">Personal Record! 🏆</p>
@@ -475,11 +465,11 @@ function CreateForm() {
                     <button onClick={() => toggleNotes(i)}
                       className="flex items-center gap-1.5 text-muted text-xs font-semibold press hover:text-white transition-colors">
                       {notesOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                      {notesOpen ? 'Hide set notes' : 'Add set notes'}
+                      {notesOpen ? 'Hide notes' : 'Add notes'}
                     </button>
                     {notesOpen && (
                       <textarea value={ex.notes || ''} onChange={e => updateExercise(i, 'notes', e.target.value)}
-                        placeholder="e.g. felt heavy on set 2, rest 90s between sets..."
+                        placeholder="e.g. felt strong today, rest 90s between sets..."
                         rows={2} maxLength={200}
                         className="field-input resize-none text-xs" />
                     )}
@@ -491,7 +481,7 @@ function CreateForm() {
             <button onClick={addExercise}
               className="w-full py-3 rounded-2xl border-2 border-dashed border-border text-muted flex items-center justify-center gap-2 hover:border-brand/40 hover:text-brand/70 transition-all press">
               <Plus size={18} /><span className="font-semibold text-sm">
-                {isStaircasterOrTreadmill ? 'Add Interval' : 'Add Exercise'}
+                {isMachine ? 'Add Interval' : isCardioType ? 'Add Session' : 'Add Exercise'}
               </span>
             </button>
 
@@ -502,7 +492,6 @@ function CreateForm() {
           </div>
         )}
 
-        {/* STEP 3 */}
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
@@ -511,7 +500,7 @@ function CreateForm() {
                 <img src={preview} alt="" className="w-full h-48 object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                 <div className="absolute bottom-2 left-2 flex items-center gap-2">
-                  <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full">📸 Photo attached</span>
+                  <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full">Photo attached</span>
                   {!isPublic && <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full flex items-center gap-1"><Lock size={10} /> Friends Only</span>}
                 </div>
               </div>
@@ -531,27 +520,26 @@ function CreateForm() {
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
             {!title.trim() && (
               <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
-                <p className="text-brand text-sm text-center">⚠️ Go back to Step 1 and add a workout title.</p>
+                <p className="text-brand text-sm text-center">Go back to Step 1 and add a workout title.</p>
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !title.trim()}
                 className="bg-brand text-white font-display text-xl py-4 rounded-2xl press disabled:opacity-40 shadow-lg shadow-brand/20 tracking-wide">
-                {loading ? 'POSTING...' : 'POST IT 🔥'}
+                {loading ? 'POSTING...' : 'POST IT'}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Save as preset modal */}
       {showPresetSave && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={() => { setShowPresetSave(false); router.push('/feed') }}>
           <div className="w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl p-6 pb-10 animate-slide-up"
             onClick={e => e.stopPropagation()}>
             <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
-            <p className="font-display text-2xl text-white mb-1">Post saved! 🔥</p>
+            <p className="font-display text-2xl text-white mb-1">Post saved!</p>
             <p className="text-muted text-sm mb-5">Want to save this as a preset workout?</p>
             <input value={presetName} onChange={e => setPresetName(e.target.value)}
               placeholder="e.g. My Push Day"
