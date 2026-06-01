@@ -44,34 +44,30 @@ export default function PublicProfilePage() {
       setCurrentUserId(user?.id ?? null)
 
       const decodedUsername = decodeURIComponent(username)
-  .replace('@', '')
-  .toLowerCase()
-  .trim()
+        .replace('@', '')
+        .toLowerCase()
+        .trim()
 
-// Try exact, then without special chars, then ilike
-let { data: p } = await supabase
-  .from('profiles')
-  .select('*')
-  .eq('username', decodedUsername)
-  .maybeSingle()
+      let { data: p } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', decodedUsername)
+        .maybeSingle()
 
-if (!p) {
-  const { data: fallback } = await supabase
-    .from('profiles')
-    .select('*')
-    .ilike('username', `%${decodedUsername}%`)
-    .maybeSingle()
-  p = fallback
-}
-
-if (!p) { setLoading(false); return }
+      if (!p) {
+        const { data: fallback } = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('username', `%${decodedUsername}%`)
+          .maybeSingle()
+        p = fallback
+      }
 
       if (!p) { setLoading(false); return }
       setProfile(p)
 
       const isOwnProfile = user?.id === p.id
 
-      // Check friendship status
       let friendshipAccepted = false
       if (user && !isOwnProfile) {
         const { data: fs } = await supabase
@@ -88,7 +84,6 @@ if (!p) { setLoading(false); return }
       if (isOwnProfile) friendshipAccepted = true
       setIsFriend(friendshipAccepted)
 
-      // Friend count
       const { count: fc } = await supabase
         .from('friendships')
         .select('*', { count: 'exact', head: true })
@@ -96,28 +91,20 @@ if (!p) { setLoading(false); return }
         .eq('status', 'accepted')
       setFriendCount(fc || 0)
 
-      // Fetch posts — filter by is_public if not a friend or own profile
-      const [{ data: ownPosts }] = await Promise.all([
-  supabase.from('workout_posts').select('*').eq('user_id', p.id).order('created_at', { ascending: false }),
-])
+      // Only fetch own posts — mentions are shoutouts only
+      const { data: ownPosts } = friendshipAccepted
+        ? await supabase.from('workout_posts').select('*').eq('user_id', p.id).order('created_at', { ascending: false })
+        : await supabase.from('workout_posts').select('*').eq('user_id', p.id).eq('is_public', true).order('created_at', { ascending: false })
 
-const allPosts = [...(ownPosts || [])]
+      const allPosts = ownPosts || []
 
-      const allPosts = [...(ownPosts || [])]
-      const seen = new Set()
-      const dedupedPosts = allPosts.filter((post: any) => {
-        if (seen.has(post.id)) return false
-        seen.add(post.id)
-        return true
-      }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-      const userIds = [...new Set(dedupedPosts.map((post: any) => post.user_id))]
+      const userIds = [...new Set(allPosts.map((post: any) => post.user_id))]
       const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds as string[])
       const profilesMap: Record<string, any> = {}
       if (profilesData) profilesData.forEach((prof: any) => { profilesMap[prof.id] = prof })
       profilesMap[p.id] = p
 
-      const postsWithCounts = await Promise.all(dedupedPosts.map(async (post: any) => {
+      const postsWithCounts = await Promise.all(allPosts.map(async (post: any) => {
         const [{ count: likes }, { count: comments }, likedRes] = await Promise.all([
           supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
           supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
