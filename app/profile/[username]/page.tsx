@@ -196,12 +196,13 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: 'Workouts', value: posts.length },
-            { label: 'PRs', value: totalPRs },
-            { label: 'Friends', value: friendCount },
-          ].map(s => (
+        <div className="grid grid-cols-4 gap-2">
+  {[
+    { label: 'Workouts', value: posts.length },
+    { label: 'PRs', value: totalPRs },
+    { label: 'Friends', value: friendCount },
+    { label: 'Streak', value: profile.current_streak > 0 ? `${profile.current_streak}🔥` : '0' },
+  ].map(s => (
             <div key={s.label} className="bg-surface-2 rounded-2xl border border-border p-3 text-center">
               <p className="font-display text-2xl text-brand">{s.value}</p>
               <p className="text-muted text-[10px] uppercase tracking-wide">{s.label}</p>
