@@ -519,6 +519,13 @@ function CreateForm() {
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
+{!preview && (
+  <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl px-4 py-5 text-center">
+    <div className="text-3xl mb-2">📸</div>
+    <p className="text-white font-bold text-sm">Add a photo</p>
+    <p className="text-zinc-500 text-xs mt-1">Posts with photos get <span className="text-red-400 font-bold">3x more likes</span> on average</p>
+  </div>
+)}
             {preview && (
               <div className="relative rounded-2xl overflow-hidden border border-border">
                 <img src={preview} alt="" className="w-full h-48 object-cover" />
