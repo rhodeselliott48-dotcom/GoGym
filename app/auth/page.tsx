@@ -36,7 +36,9 @@ export default function AuthPage() {
     } else {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(signInError.message); setLoading(false); return }
-      router.push('/feed'); router.refresh()
+      const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', (await supabase.auth.getUser()).data.user!.id).single()
+router.push(profile?.onboarding_complete ? '/feed' : '/onboarding')
+router.refresh()
     }
     setLoading(false)
   }
