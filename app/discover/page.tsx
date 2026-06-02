@@ -4,26 +4,26 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { WorkoutPost, WorkoutType } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
-import { Search, ChevronDown, Heart, MessageCircle, Share } from 'lucide-react'
+import { Search, ChevronDown, Heart, MessageCircle, MapPin } from 'lucide-react'
 
 const FILTERS: (WorkoutType | 'All')[] = [
   'All', 'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
   'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
 ]
 
-const TYPE_STYLE: Record<string, { grad: string; tag: string }> = {
-  Push:        { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800'       },
-  Pull:        { grad: 'from-red-900 to-zinc-900',    tag: 'text-red-300 border-red-700'       },
-  Upper:       { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800'     },
-  Lower:       { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800'       },
-  Legs:        { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800'       },
-  'Full Body': { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800' },
-  Cardio:      { grad: 'from-orange-900 to-zinc-900', tag: 'text-orange-300 border-orange-700' },
-  HIIT:        { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800'     },
-  Mobility:    { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600'     },
-  Stairmaster: { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800'       },
-  Treadmill:   { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800' },
-  Other:       { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600'     },
+const TYPE_STYLE: Record<string, { grad: string; tag: string; accent: string }> = {
+  Push:        { grad: 'from-red-950 via-red-900 to-zinc-900',    tag: 'text-red-400 border-red-800',       accent: 'text-red-400'    },
+  Pull:        { grad: 'from-red-900 via-red-800 to-zinc-900',    tag: 'text-red-300 border-red-700',       accent: 'text-red-300'    },
+  Upper:       { grad: 'from-rose-950 via-rose-900 to-zinc-900',  tag: 'text-rose-400 border-rose-800',     accent: 'text-rose-400'   },
+  Lower:       { grad: 'from-red-950 via-red-900 to-stone-900',   tag: 'text-red-400 border-red-800',       accent: 'text-red-400'    },
+  Legs:        { grad: 'from-red-950 via-red-900 to-stone-900',   tag: 'text-red-400 border-red-800',       accent: 'text-red-400'    },
+  'Full Body': { grad: 'from-orange-950 via-orange-900 to-zinc-900', tag: 'text-orange-400 border-orange-800', accent: 'text-orange-400' },
+  Cardio:      { grad: 'from-orange-900 via-orange-800 to-zinc-900', tag: 'text-orange-300 border-orange-700', accent: 'text-orange-300' },
+  HIIT:        { grad: 'from-rose-950 via-rose-900 to-zinc-900',  tag: 'text-rose-400 border-rose-800',     accent: 'text-rose-400'   },
+  Mobility:    { grad: 'from-zinc-700 via-zinc-800 to-zinc-900',  tag: 'text-zinc-400 border-zinc-600',     accent: 'text-zinc-400'   },
+  Stairmaster: { grad: 'from-red-950 via-red-900 to-zinc-900',    tag: 'text-red-400 border-red-800',       accent: 'text-red-400'    },
+  Treadmill:   { grad: 'from-orange-950 via-orange-900 to-zinc-900', tag: 'text-orange-400 border-orange-800', accent: 'text-orange-400' },
+  Other:       { grad: 'from-zinc-700 via-zinc-800 to-zinc-900',  tag: 'text-zinc-400 border-zinc-600',     accent: 'text-zinc-400'   },
 }
 
 function getStyle(type: string | null) {
@@ -82,28 +82,58 @@ function Avatar({ post, size = 22 }: { post: WorkoutPost; size?: number }) {
   )
 }
 
+// ── No-photo fallback: stats card visual ──────────────────────────────────────
+
+function NoPhotoCard({ post, large = false }: { post: WorkoutPost; large?: boolean }) {
+  const s = getStyle(post.workout_type ?? null)
+  const sets = totalSets(post.exercises ?? [])
+
+  return (
+    <div className={`absolute inset-0 bg-gradient-to-br ${s.grad} flex flex-col items-center justify-center gap-2 px-3`}>
+      {/* Big stats in center */}
+      <div className="flex items-end gap-3">
+        <div className="text-center">
+          <div className={`${large ? 'text-3xl' : 'text-2xl'} font-black text-white`}>{post.exercises?.length ?? 0}</div>
+          <div className="text-[9px] tracking-widest text-white/40 uppercase mt-0.5">ex</div>
+        </div>
+        <div className={`${large ? 'text-2xl' : 'text-lg'} text-white/20 font-thin mb-1`}>·</div>
+        <div className="text-center">
+          <div className={`${large ? 'text-3xl' : 'text-2xl'} font-black text-white`}>{sets}</div>
+          <div className="text-[9px] tracking-widest text-white/40 uppercase mt-0.5">sets</div>
+        </div>
+        {post.duration_minutes ? (
+          <>
+            <div className={`${large ? 'text-2xl' : 'text-lg'} text-white/20 font-thin mb-1`}>·</div>
+            <div className="text-center">
+              <div className={`${large ? 'text-3xl' : 'text-2xl'} font-black text-white`}>{post.duration_minutes}m</div>
+              <div className="text-[9px] tracking-widest text-white/40 uppercase mt-0.5">dur</div>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 // ── Trending card ─────────────────────────────────────────────────────────────
 
 function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
-  const s = getStyle(post.workout_type ?? null)
-  const photo = getFirstPhoto(post)
   const sets = totalSets(post.exercises ?? [])
+  const photo = getFirstPhoto(post)
 
   return (
     <button
       onClick={onClick}
       className="w-full text-left rounded-2xl overflow-hidden border border-red-900/60 bg-zinc-900 active:scale-[0.985] transition-transform"
     >
-      <div className="relative h-44">
+      <div className="relative h-48">
         {photo ? (
           <>
             <img src={photo} alt={post.title ?? ''} className="absolute inset-0 w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20" />
           </>
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${s.grad} flex items-center justify-center`}>
-            <span className="text-white/10 font-black text-8xl select-none">{getInitials(post)}</span>
-          </div>
+          <NoPhotoCard post={post} large />
         )}
 
         <div className="absolute top-3 right-3 flex items-center gap-1 bg-red-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full tracking-wide">
@@ -114,7 +144,7 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
           <div className="font-display text-white text-xl leading-tight mb-1.5">
             {post.title ?? post.caption ?? 'Workout'}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Avatar post={post} size={20} />
             <span className="text-white/70 text-xs">@{post.profiles?.username}</span>
             <span className="text-white/40 text-xs">· {timeAgo(post.created_at)}</span>
@@ -125,7 +155,6 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
         </div>
       </div>
 
-      {/* Stats + icons bar */}
       <div className="flex items-center border-t border-zinc-800">
         <StatCell label="EXERCISES" value={post.exercises?.length ?? 0} />
         <div className="w-px h-8 bg-zinc-800" />
@@ -135,12 +164,10 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
         <div className="flex-1" />
         <div className="flex items-center gap-3 pr-4 text-zinc-500">
           <span className="flex items-center gap-1 text-xs">
-            <Heart size={13} />
-            {post.likes_count ?? 0}
+            <Heart size={13} />{post.likes_count ?? 0}
           </span>
           <span className="flex items-center gap-1 text-xs">
-            <MessageCircle size={13} />
-            {post.comments_count ?? 0}
+            <MessageCircle size={13} />{post.comments_count ?? 0}
           </span>
         </div>
       </div>
@@ -162,7 +189,6 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
 function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
   const s = getStyle(post.workout_type ?? null)
   const photo = getFirstPhoto(post)
-  const sets = totalSets(post.exercises ?? [])
 
   return (
     <button
@@ -176,9 +202,7 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
           </>
         ) : (
-          <div className={`absolute inset-0 bg-gradient-to-br ${s.grad} flex items-center justify-center`}>
-            <span className="text-white/10 font-black text-6xl select-none">{getInitials(post)}</span>
-          </div>
+          <NoPhotoCard post={post} />
         )}
 
         {post.workout_type && (
@@ -188,7 +212,7 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
         )}
 
         <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2">
-          <div className="font-display text-white text-xs leading-tight line-clamp-2">
+          <div className="font-display text-white text-xs leading-tight line-clamp-2 drop-shadow">
             {post.title ?? post.caption ?? 'Workout'}
           </div>
         </div>
@@ -204,7 +228,7 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
           <span className="text-white font-semibold">{post.exercises?.length ?? 0}</span>
           <span className="text-zinc-500">ex</span>
           <span className="text-zinc-700">·</span>
-          <span className="text-white font-semibold">{sets}</span>
+          <span className="text-white font-semibold">{totalSets(post.exercises ?? [])}</span>
           <span className="text-zinc-500">sets</span>
           {post.duration_minutes ? (
             <>
@@ -214,8 +238,7 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
           ) : null}
           <div className="flex-1" />
           <span className="flex items-center gap-1 text-zinc-500">
-            <Heart size={11} />
-            <span>{post.likes_count ?? 0}</span>
+            <Heart size={11} />{post.likes_count ?? 0}
           </span>
         </div>
       </div>
@@ -226,7 +249,7 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
 // ── Skeletons ─────────────────────────────────────────────────────────────────
 
 function TrendingSkeleton() {
-  return <div className="rounded-2xl h-44 bg-zinc-900 border border-zinc-800 animate-pulse" />
+  return <div className="rounded-2xl h-48 bg-zinc-900 border border-zinc-800 animate-pulse" />
 }
 
 function GridSkeleton() {
@@ -248,6 +271,7 @@ export default function DiscoverPage() {
   const [posts, setPosts] = useState<WorkoutPost[]>([])
   const [filter, setFilter] = useState<WorkoutType | 'All'>('All')
   const [search, setSearch] = useState('')
+  const [location, setLocation] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const supabaseRef = useRef(createClient())
@@ -323,6 +347,13 @@ export default function DiscoverPage() {
 
   const filtered = posts.filter(p => {
     if (filter !== 'All' && p.workout_type !== filter) return false
+    if (location.trim()) {
+      const q = location.toLowerCase()
+      if (
+        !p.city?.toLowerCase().includes(q) &&
+        !p.gym_location?.toLowerCase().includes(q)
+      ) return false
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       return (
@@ -346,7 +377,8 @@ export default function DiscoverPage() {
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-sm border-b border-zinc-900 px-4 pt-12 pb-3">
         <h1 className="font-display text-3xl tracking-wide mb-3">Discover</h1>
 
-        <div className="flex gap-2">
+        {/* Search + type dropdown */}
+        <div className="flex gap-2 mb-2">
           <div className="flex-1 flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5">
             <Search size={15} className="text-zinc-500 flex-shrink-0" />
             <input
@@ -395,6 +427,21 @@ export default function DiscoverPage() {
               </>
             )}
           </div>
+        </div>
+
+        {/* Location search */}
+        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5">
+          <MapPin size={15} className="text-zinc-500 flex-shrink-0" />
+          <input
+            type="text"
+            value={location}
+            onChange={e => setLocation(e.target.value)}
+            placeholder="Filter by city or gym..."
+            className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
+          />
+          {location && (
+            <button onClick={() => setLocation('')} className="text-zinc-500 text-xs px-1">✕</button>
+          )}
         </div>
       </header>
 
