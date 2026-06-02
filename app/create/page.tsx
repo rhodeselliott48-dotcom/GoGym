@@ -298,12 +298,22 @@ function CreateForm() {
         <div className="mx-4 mt-2 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden shadow-xl">
           <p className="text-xs text-muted uppercase tracking-widest font-semibold px-4 py-3 border-b border-border">Your Presets</p>
           {presets.map(p => (
-            <button key={p.id} onClick={() => loadPreset(p)}
-              className="w-full text-left px-4 py-3 border-b border-border/50 last:border-0 press hover:bg-surface-3">
-              <p className="text-white font-semibold text-sm">{p.name}</p>
-              <p className="text-muted text-xs">{p.workout_type} · {p.exercises.length} exercises</p>
-            </button>
-          ))}
+  <div key={p.id} className="flex items-center border-b border-border/50 last:border-0">
+    <button onClick={() => loadPreset(p)}
+      className="flex-1 text-left px-4 py-3 press hover:bg-surface-3">
+      <p className="text-white font-semibold text-sm">{p.name}</p>
+      <p className="text-muted text-xs">{p.workout_type} · {p.exercises.length} exercises</p>
+    </button>
+    <button
+      onClick={async () => {
+        await supabase.from('preset_workouts').delete().eq('id', p.id)
+        await loadPresets()
+      }}
+      className="pr-4 pl-2 text-zinc-600 hover:text-red-400 transition-colors press">
+      <Trash2 size={15} />
+    </button>
+  </div>
+))}
         </div>
       )}
 
