@@ -198,7 +198,7 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
       is_public: isPublic,
     })
 
-    if (postError) { setError('Post failed: ' + postError.message); setLoading(false); return }
+    if (postError) { setError('Something went wrong, please try again.'); setLoading(false); return }
     await supabase.from('post_drafts').delete().eq('user_id', user.id)
     setLoading(false)
     setShowPresetSave(true)
@@ -523,10 +523,10 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
             </div>
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
             {!title.trim() && (
-              <div className="bg-brand/10 border border-brand/20 rounded-2xl px-4 py-3">
-                <p className="text-brand text-sm text-center">Go back to Step 1 and add a workout title.</p>
-              </div>
-            )}
+  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3">
+    <p className="text-zinc-500 text-sm text-center">⚠️ Go back to Step 1 and add a workout title first.</p>
+  </div>
+)}
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !title.trim()}
