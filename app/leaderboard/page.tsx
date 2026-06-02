@@ -297,7 +297,7 @@ export default function LeaderboardPage() {
               const entry = sorted[idx]
               if (!entry) return null
               const rank = idx + 1
-              const heights = ['h-28','h-20','h-16']
+              const heights = ['h-36','h-20','h-12']
               return (
                 <Link key={entry.user_id} href={`/profile/${entry.username}`} className="flex flex-col items-center gap-2 press">
                   <div className={`rounded-full bg-surface-3 border-2 overflow-hidden ${idx === 0 ? 'w-16 h-16' : 'w-12 h-12'}`}
