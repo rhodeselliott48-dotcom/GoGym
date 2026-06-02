@@ -63,7 +63,7 @@ export default function OnboardingPage() {
     })
   }
 
-  async function handleFinish() {
+  async function handleFinish(goToCreate = false) {
     const supabase = supabaseRef.current
     if (!userId) return
     setSaving(true)
@@ -73,7 +73,7 @@ export default function OnboardingPage() {
       fitness_goal: goal,
       onboarding_complete: true,
     }).eq('id', userId)
-    router.push('/feed')
+    router.push(goToCreate ? '/create' : '/feed')
   }
 
   const totalSteps = 4
@@ -284,14 +284,14 @@ export default function OnboardingPage() {
 
           <div className="mt-auto space-y-3">
             <button
-              onClick={handleFinish}
+              onClick={() => handleFinish(true)}
               disabled={saving}
               className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl text-sm active:scale-[0.98] transition-transform disabled:opacity-60"
             >
               {saving ? 'Saving...' : 'Log my first workout 💪'}
             </button>
             <button
-              onClick={handleFinish}
+              onClick={() => handleFinish(false)}
               disabled={saving}
               className="w-full text-zinc-600 text-sm py-2"
             >
