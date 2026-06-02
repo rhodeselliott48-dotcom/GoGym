@@ -163,9 +163,9 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
         <StatCell label="DURATION" value={post.duration_minutes ? `${post.duration_minutes}m` : '—'} />
         <div className="flex-1" />
         <div className="flex items-center gap-3 pr-4 text-zinc-500">
-          <span className="flex items-center gap-1 text-xs">
-            <Heart size={13} />{post.likes_count ?? 0}
-          </span>
+          <span className={`flex items-center gap-1 text-xs ${post.user_has_liked ? 'text-red-500' : 'text-zinc-500'}`}>
+  <Heart size={13} fill={post.user_has_liked ? 'currentColor' : 'none'} />{post.likes_count ?? 0}
+</span>
           <span className="flex items-center gap-1 text-xs">
             <MessageCircle size={13} />{post.comments_count ?? 0}
           </span>
@@ -237,9 +237,9 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
             </>
           ) : null}
           <div className="flex-1" />
-          <span className="flex items-center gap-1 text-zinc-500">
-            <Heart size={11} />{post.likes_count ?? 0}
-          </span>
+          <span className={`flex items-center gap-1 ${post.user_has_liked ? 'text-red-500' : 'text-zinc-500'}`}>
+  <Heart size={11} fill={post.user_has_liked ? 'currentColor' : 'none'} />{post.likes_count ?? 0}
+</span>
         </div>
       </div>
     </button>
