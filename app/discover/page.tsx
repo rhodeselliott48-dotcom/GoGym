@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { WorkoutPost, WorkoutType } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
-import { Search } from 'lucide-react'
+import { Search, ChevronDown } from 'lucide-react'
 
 const FILTERS: (WorkoutType | 'All')[] = [
   'All', 'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
@@ -12,18 +12,18 @@ const FILTERS: (WorkoutType | 'All')[] = [
 ]
 
 const TYPE_STYLE: Record<string, { grad: string; tag: string; emoji: string }> = {
-  Push:       { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '👊' },
-  Pull:       { grad: 'from-red-900 to-zinc-900',    tag: 'text-red-300 border-red-700',       emoji: '🤜' },
-  Upper:      { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '💪' },
-  Lower:      { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
-  Legs:       { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
-  'Full Body':{ grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🔥' },
-  Cardio:     { grad: 'from-orange-900 to-zinc-900', tag: 'text-orange-300 border-orange-700', emoji: '🏃' },
-  HIIT:       { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '⚡' },
-  Mobility:   { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '🧘' },
-  Stairmaster:{ grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '🪜' },
-  Treadmill:  { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🏃' },
-  Other:      { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '💪' },
+  Push:        { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '👊' },
+  Pull:        { grad: 'from-red-900 to-zinc-900',    tag: 'text-red-300 border-red-700',       emoji: '🤜' },
+  Upper:       { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '💪' },
+  Lower:       { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
+  Legs:        { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
+  'Full Body': { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🔥' },
+  Cardio:      { grad: 'from-orange-900 to-zinc-900', tag: 'text-orange-300 border-orange-700', emoji: '🏃' },
+  HIIT:        { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '⚡' },
+  Mobility:    { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '🧘' },
+  Stairmaster: { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '🪜' },
+  Treadmill:   { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🏃' },
+  Other:       { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '💪' },
 }
 
 function getStyle(type: string | null) {
@@ -48,7 +48,19 @@ function totalSets(exercises: any[]): number {
   }, 0)
 }
 
-function Avatar({ post, size = 32 }: { post: WorkoutPost; size?: number }) {
+function getInitials(post: WorkoutPost) {
+  if (post.profiles?.full_name)
+    return post.profiles.full_name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
+  return (post.profiles?.username ?? '??').slice(0, 2).toUpperCase()
+}
+
+function getFirstPhoto(post: WorkoutPost): string | null {
+  const urls = (post as any).photo_urls
+  if (Array.isArray(urls) && urls.length > 0 && urls[0]) return urls[0]
+  return null
+}
+
+function Avatar({ post, size = 22 }: { post: WorkoutPost; size?: number }) {
   const s = `${size}px`
   if (post.profiles?.avatar_url) {
     return (
@@ -56,27 +68,23 @@ function Avatar({ post, size = 32 }: { post: WorkoutPost; size?: number }) {
         src={post.profiles.avatar_url}
         alt={post.profiles.username}
         style={{ width: s, height: s }}
-        className="rounded-full object-cover border border-zinc-700 flex-shrink-0"
+        className="rounded-full object-cover border border-white/30 flex-shrink-0"
       />
     )
   }
-  const initials = post.profiles?.full_name
-    ? post.profiles.full_name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)
-    : (post.profiles?.username ?? '??').slice(0, 2).toUpperCase()
   return (
     <div
       style={{ width: s, height: s, fontSize: size * 0.36 }}
-      className="rounded-full bg-red-900 border border-red-800 flex items-center justify-center font-bold text-red-100 flex-shrink-0"
+      className="rounded-full bg-red-900 border border-red-700 flex items-center justify-center font-bold text-red-100 flex-shrink-0"
     >
-      {initials}
+      {getInitials(post)}
     </div>
   )
 }
 
-// ── Trending (full-width featured card) ───────────────────────────────────────
-
 function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
   const s = getStyle(post.workout_type ?? null)
+  const photo = getFirstPhoto(post)
   const sets = totalSets(post.exercises ?? [])
 
   return (
@@ -84,26 +92,37 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
       onClick={onClick}
       className="w-full text-left rounded-2xl overflow-hidden border border-red-900/60 bg-zinc-900 active:scale-[0.985] transition-transform"
     >
-      {/* Visual header */}
-      <div className={`bg-gradient-to-br ${s.grad} px-4 pt-4 pb-3 relative`}>
+      <div className="relative h-44">
+        {photo ? (
+          <>
+            <img src={photo} alt={post.title ?? ''} className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20" />
+          </>
+        ) : (
+          <div className={`absolute inset-0 bg-gradient-to-br ${s.grad} flex items-center justify-center`}>
+            <span className="text-white/10 font-black text-8xl select-none">{getInitials(post)}</span>
+          </div>
+        )}
+
         <div className="absolute top-3 right-3 flex items-center gap-1 bg-red-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full tracking-wide">
           🔥 TRENDING
         </div>
-        <div className="text-4xl mb-2">{s.emoji}</div>
-        <div className="text-white font-black text-xl leading-tight pr-24">
-          {post.title ?? post.caption ?? 'Workout'}
-        </div>
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <Avatar post={post} size={20} />
-          <span className="text-zinc-400 text-xs">@{post.profiles?.username}</span>
-          <span className="text-zinc-600 text-xs">· {timeAgo(post.created_at)}</span>
-          {post.gym_location && (
-            <span className="text-zinc-500 text-xs truncate">· 📍 {post.gym_location}</span>
-          )}
+
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-3">
+          <div className="text-white font-black text-xl leading-tight mb-1.5">
+            {post.title ?? post.caption ?? 'Workout'}
+          </div>
+          <div className="flex items-center gap-2">
+            <Avatar post={post} size={20} />
+            <span className="text-white/70 text-xs">@{post.profiles?.username}</span>
+            <span className="text-white/40 text-xs">· {timeAgo(post.created_at)}</span>
+            {post.gym_location && (
+              <span className="text-white/40 text-xs truncate">· 📍 {post.gym_location}</span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Stats bar */}
       <div className="flex items-center border-t border-zinc-800">
         <StatCell label="EXERCISES" value={post.exercises?.length ?? 0} />
         <div className="w-px h-8 bg-zinc-800" />
@@ -129,10 +148,9 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-// ── Grid card (Instagram-style) ───────────────────────────────────────────────
-
 function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
   const s = getStyle(post.workout_type ?? null)
+  const photo = getFirstPhoto(post)
   const sets = totalSets(post.exercises ?? [])
 
   return (
@@ -140,22 +158,31 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
       onClick={onClick}
       className="w-full text-left rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 active:scale-[0.97] transition-transform"
     >
-      {/* Square visual header */}
-      <div className={`bg-gradient-to-br ${s.grad} aspect-square relative flex flex-col justify-between p-3`}>
+      <div className="aspect-square relative">
+        {photo ? (
+          <>
+            <img src={photo} alt={post.title ?? ''} className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          </>
+        ) : (
+          <div className={`absolute inset-0 bg-gradient-to-br ${s.grad} flex items-center justify-center`}>
+            <span className="text-white/10 font-black text-6xl select-none">{getInitials(post)}</span>
+          </div>
+        )}
+
         {post.workout_type && (
-          <div className={`self-end text-[9px] font-bold px-2 py-0.5 rounded-full border bg-black/40 ${s.tag}`}>
+          <div className={`absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full border bg-black/50 ${s.tag}`}>
             {post.workout_type.toUpperCase()}
           </div>
         )}
-        <div className="text-3xl flex-1 flex items-center justify-center">
-          {s.emoji}
-        </div>
-        <div className="text-white font-bold text-xs leading-tight line-clamp-2">
-          {post.title ?? post.caption ?? 'Workout'}
+
+        <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2">
+          <div className="text-white font-bold text-xs leading-tight line-clamp-2 drop-shadow">
+            {post.title ?? post.caption ?? 'Workout'}
+          </div>
         </div>
       </div>
 
-      {/* Card body */}
       <div className="px-3 pt-2.5 pb-3">
         <div className="flex items-center gap-1.5 mb-2">
           <Avatar post={post} size={18} />
@@ -182,10 +209,8 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
   )
 }
 
-// ── Skeletons ─────────────────────────────────────────────────────────────────
-
 function TrendingSkeleton() {
-  return <div className="rounded-2xl h-36 bg-zinc-900 border border-zinc-800 animate-pulse" />
+  return <div className="rounded-2xl h-44 bg-zinc-900 border border-zinc-800 animate-pulse" />
 }
 
 function GridSkeleton() {
@@ -200,24 +225,20 @@ function GridSkeleton() {
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-
 export default function DiscoverPage() {
   const router = useRouter()
   const [posts, setPosts] = useState<WorkoutPost[]>([])
   const [filter, setFilter] = useState<WorkoutType | 'All'>('All')
   const [search, setSearch] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const supabaseRef = useRef(createClient())
 
-  // ── Load posts (same logic as original) ──────────────────────────────────
   useEffect(() => {
     const supabase = supabaseRef.current
 
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      setCurrentUserId(user?.id ?? null)
 
       const excludeIds: string[] = []
       if (user) {
@@ -282,7 +303,6 @@ export default function DiscoverPage() {
     load()
   }, [])
 
-  // ── Client-side filter + search ───────────────────────────────────────────
   const filtered = posts.filter(p => {
     if (filter !== 'All' && p.workout_type !== filter) return false
     if (search.trim()) {
@@ -305,54 +325,69 @@ export default function DiscoverPage() {
   return (
     <div className="min-h-screen bg-[#0f0f0f] text-white pb-24">
 
-      {/* ── Header ── */}
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-sm border-b border-zinc-900 px-4 pt-12 pb-3">
         <h1 className="font-display text-3xl tracking-wide mb-3">Discover</h1>
 
-        {/* Search */}
-        <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 mb-3">
-          <Search size={15} className="text-zinc-500 flex-shrink-0" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search workouts or people..."
-            className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="text-zinc-500 text-xs px-1">✕</button>
-          )}
-        </div>
+        <div className="flex gap-2">
+          <div className="flex-1 flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5">
+            <Search size={15} className="text-zinc-500 flex-shrink-0" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search workouts or people..."
+              className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="text-zinc-500 text-xs px-1">✕</button>
+            )}
+          </div>
 
-        {/* Filter chips */}
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {FILTERS.map(f => (
+          <div className="relative">
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`flex-shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition-colors ${
-                filter === f
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all whitespace-nowrap ${
+                filter !== 'All'
                   ? 'bg-red-600 border-red-600 text-white'
-                  : 'bg-transparent border-zinc-700 text-zinc-400'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400'
               }`}
             >
-              {f}
+              {filter === 'All' ? 'Type' : filter}
+              <ChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-          ))}
+
+            {dropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 w-44 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden z-50 shadow-2xl">
+                  {FILTERS.map(t => (
+                    <button
+                      key={t}
+                      onClick={() => { setFilter(t); setDropdownOpen(false) }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        filter === t
+                          ? 'bg-red-600 text-white font-semibold'
+                          : 'text-zinc-300 hover:bg-zinc-800'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* ── Content ── */}
       <main className="px-4 pt-4 space-y-5">
 
-        {/* Trending card */}
         {loading ? (
           <TrendingSkeleton />
         ) : trendingPost ? (
           <TrendingCard post={trendingPost} onClick={() => router.push(`/post/${trendingPost.id}`)} />
         ) : null}
 
-        {/* Section label */}
         {!loading && gridPosts.length > 0 && (
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-zinc-500 tracking-widest uppercase">
@@ -362,7 +397,6 @@ export default function DiscoverPage() {
           </div>
         )}
 
-        {/* Grid */}
         {loading ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 6 }).map((_, i) => <GridSkeleton key={i} />)}
