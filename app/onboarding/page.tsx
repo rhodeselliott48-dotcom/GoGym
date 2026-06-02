@@ -73,7 +73,7 @@ export default function OnboardingPage() {
       fitness_goal: goal,
       onboarding_complete: true,
     }).eq('id', userId)
-    router.push(goToCreate ? '/create' : '/feed')
+   router.push(goToCreate ? '/create?from=onboarding' : '/feed')
   }
 
   const totalSteps = 4
