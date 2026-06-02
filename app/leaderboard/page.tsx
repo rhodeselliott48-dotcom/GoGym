@@ -297,7 +297,7 @@ export default function LeaderboardPage() {
               const entry = sorted[idx]
               if (!entry) return null
               const rank = idx + 1
-              const heights = ['h-36','h-20','h-12']
+              const heights = ['h-36','h-24','h-16']
               return (
                 <Link key={entry.user_id} href={`/profile/${entry.username}`} className="flex flex-col items-center gap-2 press">
                   <div className={`rounded-full bg-surface-3 border-2 overflow-hidden ${idx === 0 ? 'w-16 h-16' : 'w-12 h-12'}`}
@@ -316,7 +316,7 @@ export default function LeaderboardPage() {
                       <Flame size={10} />{entry.value} {entry.label}
                     </p>
                   </div>
-                  <div className={`${heights[idx === 0 ? 0 : idx === 1 ? 2 : 1]} w-16 rounded-t-xl ${rankBg[idx]} border
+                  <div className={`${idx === 0 ? 'h-36' : idx === 1 ? 'h-24' : 'h-16'} w-16 rounded-t-xl ${rankBg[idx]} border
                     flex items-center justify-center font-display font-extrabold text-2xl ${rankColors[idx]}`}>
                     {rank}
                   </div>
