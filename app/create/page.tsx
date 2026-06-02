@@ -28,7 +28,8 @@ function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', wei
 
 function CreateForm() {
   const searchParams = useSearchParams()
-  const fromOnboarding = searchParams.get('from') === 'onboarding'
+const hasPhotos = searchParams.get('photos') === '1'
+const fromOnboarding = searchParams.get('from') === 'onboarding'
 
   const [step, setStep] = useState(1)
   const [title, setTitle] = useState('')
