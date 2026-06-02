@@ -540,7 +540,7 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
 
       {showPresetSave && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={() => { setShowPresetSave(false); router.push('/feed') }}>
-          <div className="w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl p-6 pb-10 animate-slide-up"
+  <div className="w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl p-6 pb-28 animate-slide-up"
             onClick={e => e.stopPropagation()}>
             <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
             <p className="font-display text-2xl text-white mb-1">Post saved!</p>
