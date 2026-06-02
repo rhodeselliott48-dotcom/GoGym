@@ -4,26 +4,26 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { WorkoutPost, WorkoutType } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
-import { Search, ChevronDown } from 'lucide-react'
+import { Search, ChevronDown, Heart, MessageCircle, Share } from 'lucide-react'
 
 const FILTERS: (WorkoutType | 'All')[] = [
   'All', 'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
   'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
 ]
 
-const TYPE_STYLE: Record<string, { grad: string; tag: string; emoji: string }> = {
-  Push:        { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '👊' },
-  Pull:        { grad: 'from-red-900 to-zinc-900',    tag: 'text-red-300 border-red-700',       emoji: '🤜' },
-  Upper:       { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '💪' },
-  Lower:       { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
-  Legs:        { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800',       emoji: '🦵' },
-  'Full Body': { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🔥' },
-  Cardio:      { grad: 'from-orange-900 to-zinc-900', tag: 'text-orange-300 border-orange-700', emoji: '🏃' },
-  HIIT:        { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800',     emoji: '⚡' },
-  Mobility:    { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '🧘' },
-  Stairmaster: { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800',       emoji: '🪜' },
-  Treadmill:   { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800', emoji: '🏃' },
-  Other:       { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600',     emoji: '💪' },
+const TYPE_STYLE: Record<string, { grad: string; tag: string }> = {
+  Push:        { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800'       },
+  Pull:        { grad: 'from-red-900 to-zinc-900',    tag: 'text-red-300 border-red-700'       },
+  Upper:       { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800'     },
+  Lower:       { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800'       },
+  Legs:        { grad: 'from-red-950 to-stone-900',   tag: 'text-red-400 border-red-800'       },
+  'Full Body': { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800' },
+  Cardio:      { grad: 'from-orange-900 to-zinc-900', tag: 'text-orange-300 border-orange-700' },
+  HIIT:        { grad: 'from-rose-950 to-zinc-900',   tag: 'text-rose-400 border-rose-800'     },
+  Mobility:    { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600'     },
+  Stairmaster: { grad: 'from-red-950 to-zinc-900',    tag: 'text-red-400 border-red-800'       },
+  Treadmill:   { grad: 'from-orange-950 to-zinc-900', tag: 'text-orange-400 border-orange-800' },
+  Other:       { grad: 'from-zinc-800 to-zinc-900',   tag: 'text-zinc-400 border-zinc-600'     },
 }
 
 function getStyle(type: string | null) {
@@ -82,6 +82,8 @@ function Avatar({ post, size = 22 }: { post: WorkoutPost; size?: number }) {
   )
 }
 
+// ── Trending card ─────────────────────────────────────────────────────────────
+
 function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
   const s = getStyle(post.workout_type ?? null)
   const photo = getFirstPhoto(post)
@@ -109,7 +111,7 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 px-4 pb-3">
-          <div className="text-white font-black text-xl leading-tight mb-1.5">
+          <div className="font-display text-white text-xl leading-tight mb-1.5">
             {post.title ?? post.caption ?? 'Workout'}
           </div>
           <div className="flex items-center gap-2">
@@ -123,6 +125,7 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
         </div>
       </div>
 
+      {/* Stats + icons bar */}
       <div className="flex items-center border-t border-zinc-800">
         <StatCell label="EXERCISES" value={post.exercises?.length ?? 0} />
         <div className="w-px h-8 bg-zinc-800" />
@@ -130,9 +133,15 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
         <div className="w-px h-8 bg-zinc-800" />
         <StatCell label="DURATION" value={post.duration_minutes ? `${post.duration_minutes}m` : '—'} />
         <div className="flex-1" />
-        <div className="flex items-center gap-3 pr-4 text-xs text-zinc-500">
-          <span>❤️ {post.likes_count ?? 0}</span>
-          <span>💬 {post.comments_count ?? 0}</span>
+        <div className="flex items-center gap-3 pr-4 text-zinc-500">
+          <span className="flex items-center gap-1 text-xs">
+            <Heart size={13} />
+            {post.likes_count ?? 0}
+          </span>
+          <span className="flex items-center gap-1 text-xs">
+            <MessageCircle size={13} />
+            {post.comments_count ?? 0}
+          </span>
         </div>
       </div>
     </button>
@@ -147,6 +156,8 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
     </div>
   )
 }
+
+// ── Grid card ─────────────────────────────────────────────────────────────────
 
 function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
   const s = getStyle(post.workout_type ?? null)
@@ -177,7 +188,7 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
         )}
 
         <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2">
-          <div className="text-white font-bold text-xs leading-tight line-clamp-2 drop-shadow">
+          <div className="font-display text-white text-xs leading-tight line-clamp-2">
             {post.title ?? post.caption ?? 'Workout'}
           </div>
         </div>
@@ -202,12 +213,17 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
             </>
           ) : null}
           <div className="flex-1" />
-          <span className="text-red-500">❤️ {post.likes_count ?? 0}</span>
+          <span className="flex items-center gap-1 text-zinc-500">
+            <Heart size={11} />
+            <span>{post.likes_count ?? 0}</span>
+          </span>
         </div>
       </div>
     </button>
   )
 }
+
+// ── Skeletons ─────────────────────────────────────────────────────────────────
 
 function TrendingSkeleton() {
   return <div className="rounded-2xl h-44 bg-zinc-900 border border-zinc-800 animate-pulse" />
@@ -224,6 +240,8 @@ function GridSkeleton() {
     </div>
   )
 }
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DiscoverPage() {
   const router = useRouter()
@@ -410,7 +428,7 @@ export default function DiscoverPage() {
         ) : !trendingPost ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-5xl mb-4">🔍</p>
-            <p className="text-white font-display text-2xl">
+            <p className="font-display text-white text-2xl">
               {search ? 'No results' : 'Nothing here yet'}
             </p>
             <p className="text-zinc-500 text-sm mt-2">
