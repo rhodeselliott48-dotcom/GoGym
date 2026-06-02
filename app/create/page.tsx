@@ -14,10 +14,10 @@ const WORKOUT_TYPES: WorkoutType[] = [
 ]
 const MOODS: Mood[] = ['🔒 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
 const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
-  { value: 'Solo',  label: '🧍 Solo',         desc: 'Just you grinding' },
-  { value: 'Joint', label: '👥 Joint Session', desc: 'With 1 workout partner' },
-  { value: 'Group', label: '🏟️ Group Session', desc: 'Squad workout (2+ people)' },
-  { value: 'Live',  label: '📡 Live Session',  desc: 'Coming soon' },
+  { value: 'Solo',  label: '🧍 Solo',  desc: 'Just you grinding' },
+  { value: 'Joint', label: '👥 Joint', desc: 'With 1 workout partner' },
+  { value: 'Group', label: '🏟️ Group', desc: 'Squad workout' },
+  { value: 'Live',  label: '📡 Live',  desc: 'Coming soon' },
 ]
 const SET_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1)
 const REP_OPTIONS = ['1','2','3','4','5','6','7','8','9','10','11','12','15','20','25','30','AMRAP','Failure']
@@ -28,8 +28,8 @@ function emptyExercise(): Exercise { return { name: '', sets: 3, reps: '10', wei
 
 function CreateForm() {
   const searchParams = useSearchParams()
-const hasPhotos = searchParams.get('photos') === '1'
-const fromOnboarding = searchParams.get('from') === 'onboarding'
+  const hasPhotos = searchParams.get('photos') === '1'
+  const fromOnboarding = searchParams.get('from') === 'onboarding'
 
   const [step, setStep] = useState(1)
   const [title, setTitle] = useState('')
@@ -77,9 +77,9 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
   }, [hasPhotos])
 
   useEffect(() => {
-  if (!fromOnboarding) loadDraft()
-  loadPresets()
-}, [])
+    if (!fromOnboarding) loadDraft()
+    loadPresets()
+  }, [])
 
   useEffect(() => {
     if (!title) return
@@ -224,24 +224,24 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
       )
     }
     if (isCardioType) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <div>
-        <label className="field-label">Type</label>
-        <input
-          value={ex.reps === '10' ? '' : ex.reps}
-          onChange={e => updateExercise(i, 'reps', e.target.value)}
-          placeholder="e.g. Run, Bike, Row"
-          className="field-input" />
-      </div>
-      <div>
-        <label className="field-label">Duration (mins)</label>
-        <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)}
-          placeholder="30" className="field-input" />
-      </div>
-    </div>
-  )
-}
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="field-label">Type</label>
+            <input
+              value={ex.reps === '10' ? '' : ex.reps}
+              onChange={e => updateExercise(i, 'reps', e.target.value)}
+              placeholder="e.g. Run, Bike, Row"
+              className="field-input" />
+          </div>
+          <div>
+            <label className="field-label">Duration (mins)</label>
+            <input type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)}
+              placeholder="30" className="field-input" />
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="grid grid-cols-3 gap-2">
         <div>
@@ -312,6 +312,7 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
+
             <div className="flex gap-2">
               <button onClick={() => setIsPublic(true)}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
@@ -324,10 +325,12 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
                 <Lock size={15} /> Friends Only
               </button>
             </div>
+
             <div>
               <label className="field-label">Workout Title *</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete" className="field-input" />
             </div>
+
             <div>
               <label className="field-label">Workout Type</label>
               <div className="relative">
@@ -350,24 +353,27 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
                 )}
               </div>
             </div>
+
+            {/* Session type as chip row */}
             <div>
               <label className="field-label">Session Type</label>
-              <div className="space-y-2">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {SESSION_TYPES.map(s => (
-                  <button key={s.value} type="button" disabled={s.value === 'Live'} onClick={() => setSessionType(s.value)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all press
-                      ${sessionType === s.value ? 'bg-brand/10 border-brand text-white' : 'bg-surface-2 border-border text-white/70'}
-                      ${s.value === 'Live' ? 'opacity-40 cursor-not-allowed' : ''}`}>
-                    <div className="text-left">
-                      <p className="font-semibold text-sm">{s.label}</p>
-                      <p className="text-xs text-muted">{s.desc}</p>
-                    </div>
-                    {s.value === 'Live' && <span className="text-xs bg-surface-3 text-muted px-2 py-0.5 rounded-full">Soon</span>}
-                    {sessionType === s.value && s.value !== 'Live' && <div className="w-2 h-2 rounded-full bg-brand" />}
+                  <button
+                    key={s.value}
+                    type="button"
+                    disabled={s.value === 'Live'}
+                    onClick={() => setSessionType(s.value)}
+                    className={`flex-shrink-0 px-3 py-2.5 rounded-xl text-sm font-medium transition-all press border
+                      ${sessionType === s.value ? 'bg-brand text-white border-brand' : 'bg-surface-2 text-white/80 border-border'}
+                      ${s.value === 'Live' ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    {s.label}
                   </button>
                 ))}
               </div>
             </div>
+
             {sessionType === 'Joint' && (
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-2">
                 <label className="field-label">Partner Username (1 only)</label>
@@ -386,6 +392,7 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
                 </div>
               </div>
             )}
+
             <div>
               <label className="field-label">Mood</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -398,6 +405,7 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
                 ))}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">Duration (mins)</label>
@@ -408,10 +416,12 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
                 <input value={city} onChange={e => setCity(e.target.value)} placeholder="Dallas, TX" className="field-input" />
               </div>
             </div>
+
             <div>
               <label className="field-label">Gym / Location</label>
               <input value={gymLocation} onChange={e => setGymLocation(e.target.value)} placeholder="e.g. LA Fitness, 5th St" className="field-input" />
             </div>
+
             <button onClick={() => setStep(2)} className="w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">
               NEXT: ADD EXERCISES →
             </button>
@@ -523,10 +533,10 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
             </div>
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
             {!title.trim() && (
-  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3">
-    <p className="text-zinc-500 text-sm text-center">⚠️ Go back to Step 1 and add a workout title first.</p>
-  </div>
-)}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3">
+                <p className="text-zinc-500 text-sm text-center">⚠️ Go back to Step 1 and add a workout title first.</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !title.trim()}
@@ -540,7 +550,7 @@ const fromOnboarding = searchParams.get('from') === 'onboarding'
 
       {showPresetSave && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={() => { setShowPresetSave(false); router.push('/feed') }}>
-  <div className="w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl p-6 pb-28 animate-slide-up"
+          <div className="w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl p-6 pb-28 animate-slide-up"
             onClick={e => e.stopPropagation()}>
             <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
             <p className="font-display text-2xl text-white mb-1">Post saved!</p>
