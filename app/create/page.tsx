@@ -523,7 +523,7 @@ function CreateForm() {
   <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl px-4 py-5 text-center">
     <div className="text-3xl mb-2">📸</div>
     <p className="text-white font-bold text-sm">Add a photo</p>
-    <p className="text-zinc-500 text-xs mt-1">Posts with photos get <span className="text-red-400 font-bold">3x more likes</span> on average</p>
+    <p className="text-zinc-500 text-xs mt-1">Posts with photos <span className="text-red-400 font-bold">grab way more attention</span></p>
   </div>
 )}
             {preview && (
