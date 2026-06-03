@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
-import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe, ChevronDown, ChevronUp, Save } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe, ChevronDown, ChevronUp, Save, Camera, ImagePlus, X } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise } from '@/lib/exercises'
 
@@ -57,11 +57,31 @@ function CreateForm() {
   const [presets, setPresets] = useState<any[]>([])
   const [showPresets, setShowPresets] = useState(false)
   const [draftSaved, setDraftSaved] = useState(false)
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false)
+
   const router = useRouter()
   const supabase = createClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   const isMachine = workoutType === 'Stairmaster' || workoutType === 'Treadmill'
   const isCardioType = workoutType === 'Cardio' || workoutType === 'HIIT'
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      setPhoto(file)
+      setPreview(URL.createObjectURL(file))
+      setShowPhotoOptions(false)
+    }
+  }
+
+  function removePhoto() {
+    setPhoto(null)
+    setPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }
 
   useEffect(() => {
     if (!hasPhotos) return
@@ -266,6 +286,24 @@ function CreateForm() {
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-nav">
+
+      {/* Hidden file inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3">
         {preview && (
           <div className="w-8 h-8 rounded-lg overflow-hidden border border-border flex-shrink-0">
@@ -298,22 +336,22 @@ function CreateForm() {
         <div className="mx-4 mt-2 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden shadow-xl">
           <p className="text-xs text-muted uppercase tracking-widest font-semibold px-4 py-3 border-b border-border">Your Presets</p>
           {presets.map(p => (
-  <div key={p.id} className="flex items-center border-b border-border/50 last:border-0">
-    <button onClick={() => loadPreset(p)}
-      className="flex-1 text-left px-4 py-3 press hover:bg-surface-3">
-      <p className="text-white font-semibold text-sm">{p.name}</p>
-      <p className="text-muted text-xs">{p.workout_type} · {p.exercises.length} exercises</p>
-    </button>
-    <button
-      onClick={async () => {
-        await supabase.from('preset_workouts').delete().eq('id', p.id)
-        await loadPresets()
-      }}
-      className="pr-4 pl-2 text-zinc-600 hover:text-red-400 transition-colors press">
-      <Trash2 size={15} />
-    </button>
-  </div>
-))}
+            <div key={p.id} className="flex items-center border-b border-border/50 last:border-0">
+              <button onClick={() => loadPreset(p)}
+                className="flex-1 text-left px-4 py-3 press hover:bg-surface-3">
+                <p className="text-white font-semibold text-sm">{p.name}</p>
+                <p className="text-muted text-xs">{p.workout_type} · {p.exercises.length} exercises</p>
+              </button>
+              <button
+                onClick={async () => {
+                  await supabase.from('preset_workouts').delete().eq('id', p.id)
+                  await loadPresets()
+                }}
+                className="pr-4 pl-2 text-zinc-600 hover:text-red-400 transition-colors press">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -364,7 +402,6 @@ function CreateForm() {
               </div>
             </div>
 
-            {/* Session type as chip row */}
             <div>
               <label className="field-label">Session Type</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -519,41 +556,76 @@ function CreateForm() {
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Share Your Session</SectionLabel>
-{!preview && (
-  <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl px-4 py-5 text-center">
-    <div className="text-3xl mb-2">📸</div>
-    <p className="text-white font-bold text-sm">Add a photo</p>
-    <p className="text-zinc-500 text-xs mt-1">Posts with photos <span className="text-red-400 font-bold">grab way more attention</span></p>
-  </div>
-)}
-            {preview && (
+
+            {/* Photo section */}
+            {!preview ? (
+              <div>
+                <button
+                  onClick={() => setShowPhotoOptions(!showPhotoOptions)}
+                  className="w-full bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl px-4 py-5 text-center active:scale-[0.98] transition-transform"
+                >
+                  <div className="text-3xl mb-2">📸</div>
+                  <p className="text-white font-bold text-sm">Add a photo</p>
+                  <p className="text-zinc-500 text-xs mt-1">Posts with photos <span className="text-red-400 font-bold">grab way more attention</span></p>
+                </button>
+
+                {showPhotoOptions && (
+                  <div className="mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                    <button
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800 text-white text-sm font-semibold active:bg-zinc-800 transition-colors"
+                    >
+                      <Camera size={18} className="text-red-500" />
+                      Take a photo
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-white text-sm font-semibold active:bg-zinc-800 transition-colors"
+                    >
+                      <ImagePlus size={18} className="text-red-500" />
+                      Choose from camera roll
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
               <div className="relative rounded-2xl overflow-hidden border border-border">
                 <img src={preview} alt="" className="w-full h-48 object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                <button
+                  onClick={removePhoto}
+                  className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5 active:scale-95 transition-transform"
+                >
+                  <X size={14} className="text-white" />
+                </button>
                 <div className="absolute bottom-2 left-2 flex items-center gap-2">
                   <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full">Photo attached</span>
                   {!isPublic && <span className="text-white text-xs font-semibold bg-black/50 px-2 py-1 rounded-full flex items-center gap-1"><Lock size={10} /> Friends Only</span>}
                 </div>
               </div>
             )}
+
             {!preview && !isPublic && (
               <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-xl px-4 py-3">
                 <Lock size={14} className="text-muted" />
                 <p className="text-muted text-sm">Friends Only post</p>
               </div>
             )}
+
             <div>
               <label className="field-label">Caption</label>
               <textarea value={caption} onChange={e => setCaption(e.target.value)}
                 placeholder="Write your thoughts down..." rows={3} maxLength={280} className="field-input resize-none" />
               <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
             </div>
+
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
             {!title.trim() && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3">
                 <p className="text-zinc-500 text-sm text-center">⚠️ Go back to Step 1 and add a workout title first.</p>
               </div>
             )}
+
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={handleSubmit} disabled={loading || !title.trim()}
