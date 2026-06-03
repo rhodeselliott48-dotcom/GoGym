@@ -19,12 +19,21 @@ export default function BottomNav() {
   const cameraRef = useRef<HTMLInputElement>(null)
   const libraryRef = useRef<HTMLInputElement>(null)
 
-  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || [])
-    if (files.length === 0) { router.push('/create'); return }
-    const event = new CustomEvent('gogym_photos', { detail: { files } })
-    window.dispatchEvent(event)
-    router.push('/create?photos=1')
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) { router.push('/create'); return }
+
+    // Convert file to base64 and store in sessionStorage
+    const reader = new FileReader()
+    reader.onload = () => {
+      sessionStorage.setItem('gogym_pending_photo', JSON.stringify({
+        data: reader.result,
+        name: file.name,
+        type: file.type,
+      }))
+      router.push('/create?photos=1')
+    }
+    reader.readAsDataURL(file)
     e.target.value = ''
   }
 
@@ -45,14 +54,12 @@ export default function BottomNav() {
       <input ref={libraryRef} type="file" accept="image/*"
         onChange={handleFiles} className="hidden" />
 
-      {/* Slide-up sheet */}
       {showSheet && (
         <div className="fixed inset-0 z-[60] flex items-end"
           onClick={() => setShowSheet(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl px-4 pt-3 pb-10 animate-slide-up"
             onClick={e => e.stopPropagation()}>
-            {/* Handle bar */}
             <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
 
             <button onClick={pickCamera}
@@ -88,7 +95,7 @@ export default function BottomNav() {
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md
         bg-[#0f0f0f]/95 backdrop-blur-xl border-t border-border
         flex items-center justify-around
-       pb-[calc(env(safe-area-inset-bottom)+8px)] pt-3 z-50">
+        pb-[calc(env(safe-area-inset-bottom)+8px)] pt-3 z-50">
         {tabs.map(({ href, icon: Icon, label }) => {
           const active = path === href
           const isCreate = href === '/create'

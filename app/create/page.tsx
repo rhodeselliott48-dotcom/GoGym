@@ -84,17 +84,23 @@ function CreateForm() {
   }
 
   useEffect(() => {
-    if (!hasPhotos) return
-    function onPhotos(e: Event) {
-      const files = (e as CustomEvent).detail.files as File[]
-      if (files[0]) {
-        setPhoto(files[0])
-        setPreview(URL.createObjectURL(files[0]))
-      }
-    }
-    window.addEventListener('gogym_photos', onPhotos)
-    return () => window.removeEventListener('gogym_photos', onPhotos)
-  }, [hasPhotos])
+  if (!hasPhotos) return
+  const stored = sessionStorage.getItem('gogym_pending_photo')
+  if (!stored) return
+  try {
+    const { data, name, type } = JSON.parse(stored)
+    fetch(data)
+      .then(r => r.blob())
+      .then(blob => {
+        const file = new File([blob], name, { type })
+        setPhoto(file)
+        setPreview(data)
+        sessionStorage.removeItem('gogym_pending_photo')
+      })
+  } catch (e) {
+    sessionStorage.removeItem('gogym_pending_photo')
+  }
+}, [hasPhotos])
 
   useEffect(() => {
     if (!fromOnboarding) loadDraft()
