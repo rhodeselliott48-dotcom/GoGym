@@ -658,8 +658,8 @@ export default function PostDetailPage() {
       <div className="space-y-5 mt-3">
         {post.photo_urls?.length > 0 && (
           <div className="relative w-full">
-           <img src={post.photo_urls[0]} alt="workout" className="w-full object-cover cursor-pointer" style={{ maxHeight: '380px', minHeight: '240px' }} onClick={() => setSelectedPhoto(post.photo_urls[0])} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+  <img src={post.photo_urls[0]} alt="workout" className="w-full object-cover cursor-pointer" style={{ maxHeight: '380px', minHeight: '240px' }} onClick={() => setSelectedPhoto(post.photo_urls[0])} />
+  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
             <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
               <div className="flex items-end justify-between">
                 <div>
