@@ -658,7 +658,7 @@ export default function PostDetailPage() {
       <div className="space-y-5 mt-3">
         {post.photo_urls?.length > 0 && (
           <div className="relative w-full">
-            <img src={post.photo_urls[0]} alt="workout" className="w-full object-cover" style={{ maxHeight: '380px', minHeight: '240px' }} />
+           <img src={post.photo_urls[0]} alt="workout" className="w-full object-cover cursor-pointer" style={{ maxHeight: '380px', minHeight: '240px' }} onClick={() => setSelectedPhoto(post.photo_urls[0])} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
               <div className="flex items-end justify-between">
@@ -877,10 +877,16 @@ export default function PostDetailPage() {
       </div>
 
       {selectedPhoto && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setSelectedPhoto(null)}>
-          <img src={selectedPhoto} alt="Photo" className="max-w-full max-h-full object-contain rounded-2xl" />
-        </div>
-      )}
+  <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+    <button
+      onClick={() => setSelectedPhoto(null)}
+      className="absolute top-12 right-5 bg-zinc-800 border border-zinc-700 rounded-full p-2.5 z-10 active:scale-95 transition-transform"
+    >
+      <ArrowLeft size={20} className="text-white" />
+    </button>
+    <img src={selectedPhoto} alt="Photo" className="max-w-full max-h-full object-contain rounded-2xl" />
+  </div>
+)}
 
       <BottomNav />
     </div>
