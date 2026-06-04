@@ -123,26 +123,32 @@ export default function ProfilePage() {
         setFavSplit(p.favorite_split ?? '')
         setFavExercises(p.favorite_exercises?.length ? [...p.favorite_exercises, ...Array(3).fill('')].slice(0,3) : ['','',''])
 
-        // Update streak
-        const now = new Date()
-        const lastLogged = p.last_logged_at ? new Date(p.last_logged_at) : null
-        let newStreak = p.current_streak || 0
+        // Update streak based on calendar days
+const now = new Date()
+const todayStr = now.toDateString()
+const lastLogged = p.last_logged_at ? new Date(p.last_logged_at) : null
+const lastStr = lastLogged ? lastLogged.toDateString() : null
+let newStreak = p.current_streak || 0
 
-        if (!lastLogged) {
-          newStreak = 1
-        } else {
-          const hoursSince = (now.getTime() - lastLogged.getTime()) / (1000 * 60 * 60)
-          if (hoursSince < 24) {
-            // Already logged today, keep streak
-            newStreak = p.current_streak || 1
-          } else if (hoursSince < 48) {
-            // Within 48 hours — extend streak
-            newStreak = (p.current_streak || 0) + 1
-          } else {
-            // Streak broken
-            newStreak = 1
-          }
-        }
+if (!lastStr) {
+  // First time ever
+  newStreak = 1
+} else if (lastStr === todayStr) {
+  // Already visited today — keep streak as is
+  newStreak = p.current_streak || 1
+} else {
+  // Check if yesterday
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = yesterday.toDateString()
+  if (lastStr === yesterdayStr) {
+    // Visited yesterday — extend streak
+    newStreak = (p.current_streak || 0) + 1
+  } else {
+    // Missed a day — reset
+    newStreak = 1
+  }
+}
 
         setStreak(newStreak)
 
