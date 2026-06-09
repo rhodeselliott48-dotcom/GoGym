@@ -13,11 +13,11 @@ const WORKOUT_TYPES: WorkoutType[] = [
   'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
 ]
 const MOODS: { value: Mood; emoji: string; label: string }[] = [
-  { value: '🔒 Locked In', emoji: '🔒', label: 'Locked In' },
-  { value: '🔥 On Fire',   emoji: '🔥', label: 'On Fire'   },
-  { value: '💪 Strong',    emoji: '💪', label: 'Strong'    },
-  { value: '😊 Great',     emoji: '😊', label: 'Great'     },
-  { value: '😴 Tired',     emoji: '😴', label: 'Tired'     },
+  { value: '🔒 Locked In',   emoji: '🔒', label: 'Locked In'   },
+  { value: '🔥 On Fire',     emoji: '🔥', label: 'On Fire'     },
+  { value: '💪 Strong',      emoji: '💪', label: 'Strong'      },
+  { value: '😊 Great',       emoji: '😊', label: 'Great'       },
+  { value: '😴 Tired',       emoji: '😴', label: 'Tired'       },
   { value: '💀 Dead Inside', emoji: '💀', label: 'Dead Inside' },
 ]
 const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
@@ -101,7 +101,8 @@ function CreateForm() {
   const [duration, setDuration] = useState(60)
   const [gymLocation, setGymLocation] = useState('')
   const [city, setCity] = useState('')
-  const [showLocation, setShowLocation] = useState(false)
+  const [detectingLocation, setDetectingLocation] = useState(false)
+  const [locationDetected, setLocationDetected] = useState(false)
   const [jointPartner, setJointPartner] = useState('')
   const [groupMembers, setGroupMembers] = useState('')
   const [groupName, setGroupName] = useState('')
@@ -144,6 +145,34 @@ function CreateForm() {
     setPreview(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }
+
+  async function handleDetectLocation() {
+    if (!navigator.geolocation) return
+    setDetectingLocation(true)
+    setLocationDetected(false)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          )
+          const data = await res.json()
+          const cityName = data.address?.city || data.address?.town || data.address?.village || ''
+          const state = data.address?.state_code || data.address?.state || ''
+          const combined = cityName && state ? `${cityName}, ${state}` : cityName || state || ''
+          if (combined) setCity(combined)
+          setLocationDetected(true)
+        } catch {
+          // silently fail, user can type manually
+        }
+        setDetectingLocation(false)
+      },
+      () => {
+        setDetectingLocation(false)
+      }
+    )
   }
 
   useEffect(() => {
@@ -419,7 +448,6 @@ function CreateForm() {
 
         {/* ══════════════════════════════════════════
             STEP 1 — Session Details
-            Visibility · Title · Workout Type · Session Type
         ══════════════════════════════════════════ */}
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
@@ -445,15 +473,15 @@ function CreateForm() {
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete" className="field-input" />
             </div>
 
-            {/* Workout Type — tap grid */}
+            {/* Workout Type — swipeable scroll row */}
             <div>
               <label className="field-label">Workout Type</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {WORKOUT_TYPES.map(type => (
                   <button
                     key={type}
                     onClick={() => setWorkoutType(workoutType === type ? '' : type)}
-                    className={`py-3 rounded-xl border text-sm font-semibold transition-all press
+                    className={`flex-shrink-0 px-4 py-2.5 rounded-full border text-sm font-semibold transition-all press
                       ${workoutType === type
                         ? 'bg-brand/15 border-brand text-white'
                         : 'bg-surface-2 border-border text-muted hover:text-white'}`}>
@@ -601,96 +629,14 @@ function CreateForm() {
         )}
 
         {/* ══════════════════════════════════════════
-            STEP 3 — The Vibe
-            Mood · Duration · Location (collapsed) · Caption · Photo
+            STEP 3 — Finish Strong
+            Photo · Caption · Mood · Duration · Location
         ══════════════════════════════════════════ */}
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
-            <SectionLabel>Add the Vibe</SectionLabel>
+            <SectionLabel>Finish Strong</SectionLabel>
 
-            {/* Mood — big emoji grid */}
-            <div>
-              <label className="field-label">How'd it feel?</label>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {MOODS.map(m => (
-                  <button
-                    key={m.value}
-                    onClick={() => setMood(mood === m.value ? '' : m.value)}
-                    className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl border transition-all press
-                      ${mood === m.value
-                        ? 'bg-brand/12 border-brand'
-                        : 'bg-surface-2 border-border hover:border-border/60'}`}>
-                    <span className="text-2xl">{m.emoji}</span>
-                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${mood === m.value ? 'text-brand' : 'text-muted'}`}>
-                      {m.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Duration — slider */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="field-label">Duration</label>
-                <span className="text-brand font-display text-lg tracking-wide">{duration} min</span>
-              </div>
-              <input
-                type="range"
-                min={5}
-                max={180}
-                step={5}
-                value={duration}
-                onChange={e => setDuration(parseInt(e.target.value))}
-                className="w-full accent-brand h-1 rounded-full cursor-pointer"
-              />
-              <div className="flex justify-between mt-1">
-                <span className="text-muted text-[10px]">5 min</span>
-                <span className="text-muted text-[10px]">3 hrs</span>
-              </div>
-            </div>
-
-            {/* Location — collapsed by default */}
-            <div>
-              <button
-                onClick={() => setShowLocation(!showLocation)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 bg-surface-2 border border-border rounded-2xl press transition-all hover:border-border/60">
-                <MapPin size={16} className={showLocation ? 'text-brand' : 'text-muted'} />
-                <span className={`flex-1 text-left text-sm font-semibold ${showLocation ? 'text-white' : 'text-muted'}`}>
-                  {city || gymLocation ? `${gymLocation || city}` : 'Add location'}
-                </span>
-                {showLocation ? <ChevronUp size={15} className="text-muted" /> : <ChevronDown size={15} className="text-muted" />}
-              </button>
-
-              {showLocation && (
-                <div className="mt-2 bg-surface-2 border border-border rounded-2xl p-4 space-y-3">
-                  <div>
-                    <label className="field-label">City</label>
-                    <input value={city} onChange={e => setCity(e.target.value)} placeholder="Dallas, TX" className="field-input" />
-                  </div>
-                  <div>
-                    <label className="field-label">Gym / Location</label>
-                    <input value={gymLocation} onChange={e => setGymLocation(e.target.value)} placeholder="e.g. LA Fitness, 5th St" className="field-input" />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Caption */}
-            <div>
-              <label className="field-label">Caption</label>
-              <textarea
-                value={caption}
-                onChange={e => setCaption(e.target.value)}
-                placeholder="Write your thoughts down..."
-                rows={3}
-                maxLength={280}
-                className="field-input resize-none"
-              />
-              <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
-            </div>
-
-            {/* Photo */}
+            {/* 1. Photo */}
             {!preview ? (
               <div>
                 <button
@@ -733,6 +679,109 @@ function CreateForm() {
                 <p className="text-muted text-sm">Friends Only post</p>
               </div>
             )}
+
+            {/* 2. Caption */}
+            <div>
+              <label className="field-label">Caption</label>
+              <textarea
+                value={caption}
+                onChange={e => setCaption(e.target.value)}
+                placeholder="Write your thoughts down..."
+                rows={3}
+                maxLength={280}
+                className="field-input resize-none"
+              />
+              <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* 3. Mood */}
+            <div>
+              <label className="field-label">How'd it feel?</label>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {MOODS.map(m => (
+                  <button
+                    key={m.value}
+                    onClick={() => setMood(mood === m.value ? '' : m.value)}
+                    className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl border transition-all press
+                      ${mood === m.value
+                        ? 'bg-brand/12 border-brand'
+                        : 'bg-surface-2 border-border hover:border-border/60'}`}>
+                    <span className="text-2xl">{m.emoji}</span>
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${mood === m.value ? 'text-brand' : 'text-muted'}`}>
+                      {m.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. Duration */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="field-label">Duration</label>
+                <span className="text-brand font-display text-lg tracking-wide">{duration} min</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={180}
+                step={5}
+                value={duration}
+                onChange={e => setDuration(parseInt(e.target.value))}
+                className="w-full accent-brand h-1 rounded-full cursor-pointer"
+              />
+              <div className="flex justify-between mt-1">
+                <span className="text-muted text-[10px]">5 min</span>
+                <span className="text-muted text-[10px]">3 hrs</span>
+              </div>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            {/* 5. Location — open card with Find Me button */}
+            <div className="bg-surface-2 rounded-2xl border border-border overflow-hidden">
+              <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+                <MapPin size={16} className="text-brand flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-white font-semibold text-sm">Where are you lifting?</p>
+                  <p className="text-muted text-xs mt-0.5">Helps others find workouts near them</p>
+                </div>
+                <button
+                  onClick={handleDetectLocation}
+                  disabled={detectingLocation || locationDetected}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all press
+                    ${locationDetected
+                      ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                      : detectingLocation
+                      ? 'bg-surface-3 border-border text-muted'
+                      : 'bg-brand/10 border-brand/30 text-brand'}`}>
+                  <MapPin size={12} />
+                  {locationDetected ? 'Found!' : detectingLocation ? 'Finding...' : 'Find Me'}
+                </button>
+              </div>
+              <div className="px-4 pb-4 space-y-3">
+                <div>
+                  <label className="field-label">City</label>
+                  <input
+                    value={city}
+                    onChange={e => { setCity(e.target.value); setLocationDetected(false) }}
+                    placeholder="e.g. Dallas, TX"
+                    className="field-input"
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Gym / Location</label>
+                  <input
+                    value={gymLocation}
+                    onChange={e => setGymLocation(e.target.value)}
+                    placeholder="e.g. LA Fitness, 5th St"
+                    className="field-input"
+                  />
+                </div>
+              </div>
+            </div>
 
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
             {!title.trim() && (
@@ -784,6 +833,8 @@ function CreateForm() {
         .field-label { display: block; font-size: 0.65rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 0.375rem; }
         .field-input { width: 100%; background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 0.75rem; padding: 0.75rem 1rem; color: white; font-size: 0.875rem; transition: all 0.15s; }
         .field-input::placeholder { color: #666; }
+        .scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+        .scrollbar-none::-webkit-scrollbar { display: none; }
         input[type=range] { -webkit-appearance: none; appearance: none; background: #2e2e2e; border-radius: 9999px; height: 4px; outline: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #ef4444; cursor: pointer; border: 3px solid #0f0f0f; }
         input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #ef4444; cursor: pointer; border: 3px solid #0f0f0f; }

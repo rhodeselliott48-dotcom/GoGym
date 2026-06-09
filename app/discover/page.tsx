@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { WorkoutPost, WorkoutType } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
-import { Search, ChevronDown, Heart, MessageCircle, MapPin } from 'lucide-react'
+import { Search, ChevronDown, Heart, MessageCircle, MapPin, Navigation } from 'lucide-react'
 
 const FILTERS: (WorkoutType | 'All')[] = [
   'All', 'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
@@ -82,15 +82,12 @@ function Avatar({ post, size = 22 }: { post: WorkoutPost; size?: number }) {
   )
 }
 
-// ── No-photo fallback: stats card visual ──────────────────────────────────────
-
 function NoPhotoCard({ post, large = false }: { post: WorkoutPost; large?: boolean }) {
   const s = getStyle(post.workout_type ?? null)
   const sets = totalSets(post.exercises ?? [])
 
   return (
     <div className={`absolute inset-0 bg-gradient-to-br ${s.grad} flex flex-col items-center justify-center gap-2 px-3`}>
-      {/* Big stats in center */}
       <div className="flex items-end gap-3">
         <div className="text-center">
           <div className={`${large ? 'text-3xl' : 'text-2xl'} font-black text-white`}>{post.exercises?.length ?? 0}</div>
@@ -114,8 +111,6 @@ function NoPhotoCard({ post, large = false }: { post: WorkoutPost; large?: boole
     </div>
   )
 }
-
-// ── Trending card ─────────────────────────────────────────────────────────────
 
 function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
   const sets = totalSets(post.exercises ?? [])
@@ -164,8 +159,8 @@ function TrendingCard({ post, onClick }: { post: WorkoutPost; onClick: () => voi
         <div className="flex-1" />
         <div className="flex items-center gap-3 pr-4 text-zinc-500">
           <span className={`flex items-center gap-1 text-xs ${post.user_has_liked ? 'text-red-500' : 'text-zinc-500'}`}>
-  <Heart size={13} fill={post.user_has_liked ? 'currentColor' : 'none'} />{post.likes_count ?? 0}
-</span>
+            <Heart size={13} fill={post.user_has_liked ? 'currentColor' : 'none'} />{post.likes_count ?? 0}
+          </span>
           <span className="flex items-center gap-1 text-xs">
             <MessageCircle size={13} />{post.comments_count ?? 0}
           </span>
@@ -183,8 +178,6 @@ function StatCell({ label, value }: { label: string; value: string | number }) {
     </div>
   )
 }
-
-// ── Grid card ─────────────────────────────────────────────────────────────────
 
 function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void }) {
   const s = getStyle(post.workout_type ?? null)
@@ -238,15 +231,13 @@ function GridCard({ post, onClick }: { post: WorkoutPost; onClick: () => void })
           ) : null}
           <div className="flex-1" />
           <span className={`flex items-center gap-1 ${post.user_has_liked ? 'text-red-500' : 'text-zinc-500'}`}>
-  <Heart size={11} fill={post.user_has_liked ? 'currentColor' : 'none'} />{post.likes_count ?? 0}
-</span>
+            <Heart size={11} fill={post.user_has_liked ? 'currentColor' : 'none'} />{post.likes_count ?? 0}
+          </span>
         </div>
       </div>
     </button>
   )
 }
-
-// ── Skeletons ─────────────────────────────────────────────────────────────────
 
 function TrendingSkeleton() {
   return <div className="rounded-2xl h-48 bg-zinc-900 border border-zinc-800 animate-pulse" />
@@ -264,8 +255,6 @@ function GridSkeleton() {
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-
 export default function DiscoverPage() {
   const router = useRouter()
   const [posts, setPosts] = useState<WorkoutPost[]>([])
@@ -274,7 +263,35 @@ export default function DiscoverPage() {
   const [location, setLocation] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [detectingLocation, setDetectingLocation] = useState(false)
+  const [locationDetected, setLocationDetected] = useState(false)
   const supabaseRef = useRef(createClient())
+
+  async function handleDetectLocation() {
+    if (!navigator.geolocation) return
+    setDetectingLocation(true)
+    setLocationDetected(false)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          )
+          const data = await res.json()
+          const cityName = data.address?.city || data.address?.town || data.address?.village || ''
+          const state = data.address?.state_code || data.address?.state || ''
+          const combined = cityName && state ? `${cityName}, ${state}` : cityName || state || ''
+          if (combined) setLocation(combined)
+          setLocationDetected(true)
+        } catch {
+          // silently fail
+        }
+        setDetectingLocation(false)
+      },
+      () => { setDetectingLocation(false) }
+    )
+  }
 
   useEffect(() => {
     const supabase = supabaseRef.current
@@ -377,7 +394,7 @@ export default function DiscoverPage() {
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-sm border-b border-zinc-900 px-4 pt-12 pb-3">
         <h1 className="font-display text-3xl tracking-wide mb-3">Discover</h1>
 
-        {/* Search + type dropdown */}
+        {/* Search + type dropdown — unchanged */}
         <div className="flex gap-2 mb-2">
           <div className="flex-1 flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5">
             <Search size={15} className="text-zinc-500 flex-shrink-0" />
@@ -429,18 +446,32 @@ export default function DiscoverPage() {
           </div>
         </div>
 
-        {/* Location search */}
+        {/* Location row — with Find Me button added */}
         <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5">
-          <MapPin size={15} className="text-zinc-500 flex-shrink-0" />
+          <MapPin size={15} className={locationDetected ? 'text-brand' : 'text-zinc-500'} />
           <input
             type="text"
             value={location}
-            onChange={e => setLocation(e.target.value)}
+            onChange={e => { setLocation(e.target.value); setLocationDetected(false) }}
             placeholder="Filter by city or gym..."
             className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 outline-none"
           />
-          {location && (
-            <button onClick={() => setLocation('')} className="text-zinc-500 text-xs px-1">✕</button>
+          {location ? (
+            <button
+              onClick={() => { setLocation(''); setLocationDetected(false) }}
+              className="text-zinc-500 text-xs px-1">✕
+            </button>
+          ) : (
+            <button
+              onClick={handleDetectLocation}
+              disabled={detectingLocation}
+              className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg border transition-all
+                ${detectingLocation
+                  ? 'text-zinc-500 border-zinc-700 bg-transparent'
+                  : 'text-brand border-brand/30 bg-brand/10'}`}>
+              <Navigation size={11} />
+              {detectingLocation ? 'Finding...' : 'Find Me'}
+            </button>
           )}
         </div>
       </header>
