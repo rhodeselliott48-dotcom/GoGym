@@ -782,10 +782,10 @@ export default function PostDetailPage() {
           {post.caption && <p className="text-white/80 text-sm leading-relaxed">{post.caption}</p>}
 
           {post.exercises?.length > 0 && (
-            <div>
-              <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Exercises</h3>
-              <div className="space-y-2">
-                {post.exercises.map((ex, i) => {
+  <div>
+    <h3 className="font-display text-lg tracking-wide text-white/60 uppercase mb-3">Exercises</h3>
+    <div className="space-y-2">
+      {post.exercises.slice(0, expandedExercise === -1 ? post.exercises.length : 3).map((ex, i) => {
                   const info = findExercise(ex.name)
                   const isExpanded = expandedExercise === i
                   return (
@@ -828,6 +828,18 @@ export default function PostDetailPage() {
                     </button>
                   )
                 })}
+                {post.exercises.length > 3 && (
+                  <button
+                    onClick={() => setExpandedExercise(expandedExercise === -1 ? null : -1)}
+                    className="w-full py-2.5 rounded-xl border border-border text-muted text-sm font-semibold press hover:text-white transition-colors flex items-center justify-center gap-2"
+                  >
+                    {expandedExercise === -1 ? (
+                      <><ChevronUp size={15} /> Show less</>
+                    ) : (
+                      <><ChevronDown size={15} /> Show all {post.exercises.length} exercises</>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           )}
