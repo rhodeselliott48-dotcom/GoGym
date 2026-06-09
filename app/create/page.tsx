@@ -625,6 +625,9 @@ function CreateForm() {
               <button onClick={() => setStep(1)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
               <button onClick={() => setStep(3)} className="bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">NEXT →</button>
             </div>
+            <button onClick={() => setStep(3)} className="w-full py-3 text-muted text-sm font-semibold press hover:text-white transition-colors">
+              Skip — just post the vibe →
+            </button>
           </div>
         )}
 
