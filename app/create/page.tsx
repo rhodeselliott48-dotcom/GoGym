@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { WorkoutType, Mood, SessionType, Exercise } from '@/lib/types'
-import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe, ChevronDown, ChevronUp, Save, Camera, ImagePlus, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Star, Info, Lock, Globe, ChevronDown, ChevronUp, Save, Camera, ImagePlus, X, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { findExercise, EXERCISE_DB } from '@/lib/exercises'
 
@@ -12,7 +12,14 @@ const WORKOUT_TYPES: WorkoutType[] = [
   'Push', 'Pull', 'Upper', 'Lower', 'Legs', 'Full Body',
   'Cardio', 'HIIT', 'Mobility', 'Stairmaster', 'Treadmill', 'Other'
 ]
-const MOODS: Mood[] = ['🔒 Locked In', '😴 Tired', '😊 Great', '🔥 On Fire', '💪 Strong', '💀 Dead Inside']
+const MOODS: { value: Mood; emoji: string; label: string }[] = [
+  { value: '🔒 Locked In', emoji: '🔒', label: 'Locked In' },
+  { value: '🔥 On Fire',   emoji: '🔥', label: 'On Fire'   },
+  { value: '💪 Strong',    emoji: '💪', label: 'Strong'    },
+  { value: '😊 Great',     emoji: '😊', label: 'Great'     },
+  { value: '😴 Tired',     emoji: '😴', label: 'Tired'     },
+  { value: '💀 Dead Inside', emoji: '💀', label: 'Dead Inside' },
+]
 const SESSION_TYPES: { value: SessionType; label: string; desc: string }[] = [
   { value: 'Solo',  label: '🧍 Solo',  desc: 'Just you grinding' },
   { value: 'Joint', label: '👥 Joint', desc: 'With 1 workout partner' },
@@ -85,17 +92,16 @@ function ExerciseNameInput({ value, onChange, placeholder }: {
 function CreateForm() {
   const searchParams = useSearchParams()
   const hasPhotos = searchParams.get('photos') === '1'
-  const fromOnboarding = searchParams.get('from') === 'onboarding'
 
   const [step, setStep] = useState(1)
   const [title, setTitle] = useState('')
   const [workoutType, setWorkoutType] = useState<WorkoutType | ''>('')
-  const [workoutDropdownOpen, setWorkoutDropdownOpen] = useState(false)
   const [sessionType, setSessionType] = useState<SessionType>('Solo')
   const [mood, setMood] = useState<Mood | ''>('')
-  const [duration, setDuration] = useState('')
+  const [duration, setDuration] = useState(60)
   const [gymLocation, setGymLocation] = useState('')
   const [city, setCity] = useState('')
+  const [showLocation, setShowLocation] = useState(false)
   const [jointPartner, setJointPartner] = useState('')
   const [groupMembers, setGroupMembers] = useState('')
   const [groupName, setGroupName] = useState('')
@@ -121,7 +127,7 @@ function CreateForm() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
 
   const isMachine = workoutType === 'Stairmaster' || workoutType === 'Treadmill'
-  const isCardioOnly = workoutType === 'Cardio' // only pure Cardio gets duration+distance
+  const isCardioOnly = workoutType === 'Cardio'
   const isHIIT = workoutType === 'HIIT'
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -160,7 +166,6 @@ function CreateForm() {
   }, [hasPhotos])
 
   useEffect(() => {
-    // Never auto-load draft — user starts fresh every time
     loadPresets()
   }, [])
 
@@ -208,7 +213,6 @@ function CreateForm() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
-    // Fix 2: presets only save workout type + exercises, NOT mood or caption
     await supabase.from('preset_workouts').insert({
       user_id: user.id,
       name: presetName.trim(),
@@ -255,7 +259,7 @@ function CreateForm() {
       session_type: sessionType,
       photo_urls,
       exercises,
-      duration_minutes: duration ? parseInt(duration) : null,
+      duration_minutes: duration || null,
       gym_location: gymLocation,
       city,
       mentions: mentionList,
@@ -289,7 +293,6 @@ function CreateForm() {
       )
     }
 
-    // Fix 4: Pure Cardio gets duration + distance
     if (isCardioOnly) {
       return (
         <div className="grid grid-cols-2 gap-2">
@@ -318,7 +321,6 @@ function CreateForm() {
       )
     }
 
-    // HIIT keeps type + duration (old cardio behavior)
     if (isHIIT) {
       return (
         <div className="grid grid-cols-2 gap-2">
@@ -367,12 +369,8 @@ function CreateForm() {
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
 
+      {/* ── Header ── */}
       <header className="sticky top-0 z-40 bg-[#0f0f0f]/95 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3">
-        {preview && (
-          <div className="w-8 h-8 rounded-lg overflow-hidden border border-border flex-shrink-0">
-            <img src={preview} alt="" className="w-full h-full object-cover" />
-          </div>
-        )}
         <Link href="/feed" className="text-muted hover:text-white press"><ArrowLeft size={20} /></Link>
         <div className="flex-1">
           <h2 className="font-display text-2xl tracking-wide">Log Workout</h2>
@@ -380,12 +378,14 @@ function CreateForm() {
         </div>
         <div className="flex items-center gap-2">
           {presets.length > 0 && (
-            <button onClick={() => setShowPresets(!showPresets)}
-              className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-xl press">
+            <button
+              onClick={() => setShowPresets(!showPresets)}
+              className="text-xs text-brand font-semibold bg-brand/10 border border-brand/20 px-3 py-1.5 rounded-xl press"
+            >
               Presets
             </button>
           )}
-          {[1,2,3].map(s => (
+          {[1, 2, 3].map(s => (
             <button key={s} onClick={() => setStep(s)}
               className={`w-7 h-7 rounded-full text-xs font-bold transition-all press
                 ${step === s ? 'bg-brand text-white' : step > s ? 'bg-brand/30 text-brand' : 'bg-surface-3 text-muted'}`}>
@@ -395,6 +395,7 @@ function CreateForm() {
         </div>
       </header>
 
+      {/* ── Presets panel ── */}
       {showPresets && (
         <div className="mx-4 mt-2 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden shadow-xl">
           <p className="text-xs text-muted uppercase tracking-widest font-semibold px-4 py-3 border-b border-border">Your Presets</p>
@@ -416,10 +417,15 @@ function CreateForm() {
 
       <div className="px-4 py-6 space-y-6">
 
+        {/* ══════════════════════════════════════════
+            STEP 1 — Session Details
+            Visibility · Title · Workout Type · Session Type
+        ══════════════════════════════════════════ */}
         {step === 1 && (
           <div className="space-y-5 animate-fade-up">
             <SectionLabel>Session Details</SectionLabel>
 
+            {/* Visibility */}
             <div className="flex gap-2">
               <button onClick={() => setIsPublic(true)}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-all press
@@ -433,34 +439,31 @@ function CreateForm() {
               </button>
             </div>
 
+            {/* Title */}
             <div>
               <label className="field-label">Workout Title *</label>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Push Day Complete" className="field-input" />
             </div>
 
+            {/* Workout Type — tap grid */}
             <div>
               <label className="field-label">Workout Type</label>
-              <div className="relative">
-                <button onClick={() => setWorkoutDropdownOpen(!workoutDropdownOpen)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-all press
-                    ${workoutType ? 'bg-brand/10 border-brand text-white' : 'bg-surface-2 border-border text-muted'}`}>
-                  {workoutType || 'Select workout type...'}
-                  <ChevronDown size={16} className={`transition-transform ${workoutDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {workoutDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-[#1a1a1a] border border-border rounded-2xl overflow-hidden z-50 shadow-xl">
-                    {WORKOUT_TYPES.map(type => (
-                      <button key={type} onClick={() => { setWorkoutType(type); setWorkoutDropdownOpen(false) }}
-                        className={`w-full text-left px-4 py-3 text-sm transition-all press border-b border-border/50 last:border-0
-                          ${workoutType === type ? 'bg-brand text-white font-semibold' : 'text-white/70 hover:bg-surface-3'}`}>
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="grid grid-cols-3 gap-2">
+                {WORKOUT_TYPES.map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setWorkoutType(workoutType === type ? '' : type)}
+                    className={`py-3 rounded-xl border text-sm font-semibold transition-all press
+                      ${workoutType === type
+                        ? 'bg-brand/15 border-brand text-white'
+                        : 'bg-surface-2 border-border text-muted hover:text-white'}`}>
+                    {type}
+                  </button>
+                ))}
               </div>
             </div>
 
+            {/* Session Type */}
             <div>
               <label className="field-label">Session Type</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -475,12 +478,15 @@ function CreateForm() {
               </div>
             </div>
 
+            {/* Joint partner */}
             {sessionType === 'Joint' && (
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-2">
                 <label className="field-label">Partner Username (1 only)</label>
                 <input value={jointPartner} onChange={e => setJointPartner(e.target.value.replace('@', ''))} placeholder="@username" className="field-input" />
               </div>
             )}
+
+            {/* Group members */}
             {sessionType === 'Group' && (
               <div className="bg-surface-2 rounded-2xl p-4 border border-brand/20 space-y-3">
                 <div>
@@ -494,41 +500,15 @@ function CreateForm() {
               </div>
             )}
 
-            <div>
-              <label className="field-label">Mood</label>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {MOODS.map(m => (
-                  <button key={m} type="button" onClick={() => setMood(mood === m ? '' : m)}
-                    className={`flex-shrink-0 px-3 py-2.5 rounded-xl text-sm font-medium transition-all press border
-                      ${mood === m ? 'bg-brand text-white border-brand' : 'bg-surface-2 text-white/80 border-border'}`}>
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="field-label">Duration (mins)</label>
-                <input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="60" className="field-input" />
-              </div>
-              <div>
-                <label className="field-label">City</label>
-                <input value={city} onChange={e => setCity(e.target.value)} placeholder="Dallas, TX" className="field-input" />
-              </div>
-            </div>
-
-            <div>
-              <label className="field-label">Gym / Location</label>
-              <input value={gymLocation} onChange={e => setGymLocation(e.target.value)} placeholder="e.g. LA Fitness, 5th St" className="field-input" />
-            </div>
-
             <button onClick={() => setStep(2)} className="w-full bg-brand text-white font-display text-xl py-4 rounded-2xl press shadow-lg shadow-brand/20 tracking-wide">
               NEXT: ADD EXERCISES →
             </button>
           </div>
         )}
 
+        {/* ══════════════════════════════════════════
+            STEP 2 — Exercises
+        ══════════════════════════════════════════ */}
         {step === 2 && (
           <div className="space-y-4 animate-fade-up">
             <SectionLabel>
@@ -542,9 +522,8 @@ function CreateForm() {
                 <div key={i} className="bg-surface-2 rounded-2xl border border-border overflow-hidden">
                   <div className="p-4 space-y-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-brand font-display text-lg w-6">{i+1}</span>
+                      <span className="text-brand font-display text-lg w-6">{i + 1}</span>
 
-                      {/* Fix 5: autocomplete for non-cardio/machine types */}
                       {!isCardioOnly && !isHIIT && !isMachine ? (
                         <ExerciseNameInput
                           value={ex.name}
@@ -556,7 +535,7 @@ function CreateForm() {
                           value={ex.name}
                           onChange={e => updateExercise(i, 'name', e.target.value)}
                           placeholder={
-                            isMachine ? `${workoutType} interval ${i+1}` :
+                            isMachine ? `${workoutType} interval ${i + 1}` :
                             isCardioOnly ? 'e.g. Morning Run, Trail Run' :
                             'e.g. HIIT Circuit, Sprints'
                           }
@@ -621,27 +600,115 @@ function CreateForm() {
           </div>
         )}
 
+        {/* ══════════════════════════════════════════
+            STEP 3 — The Vibe
+            Mood · Duration · Location (collapsed) · Caption · Photo
+        ══════════════════════════════════════════ */}
         {step === 3 && (
           <div className="space-y-5 animate-fade-up">
-            <SectionLabel>Share Your Session</SectionLabel>
+            <SectionLabel>Add the Vibe</SectionLabel>
 
+            {/* Mood — big emoji grid */}
+            <div>
+              <label className="field-label">How'd it feel?</label>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {MOODS.map(m => (
+                  <button
+                    key={m.value}
+                    onClick={() => setMood(mood === m.value ? '' : m.value)}
+                    className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl border transition-all press
+                      ${mood === m.value
+                        ? 'bg-brand/12 border-brand'
+                        : 'bg-surface-2 border-border hover:border-border/60'}`}>
+                    <span className="text-2xl">{m.emoji}</span>
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${mood === m.value ? 'text-brand' : 'text-muted'}`}>
+                      {m.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Duration — slider */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="field-label">Duration</label>
+                <span className="text-brand font-display text-lg tracking-wide">{duration} min</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={180}
+                step={5}
+                value={duration}
+                onChange={e => setDuration(parseInt(e.target.value))}
+                className="w-full accent-brand h-1 rounded-full cursor-pointer"
+              />
+              <div className="flex justify-between mt-1">
+                <span className="text-muted text-[10px]">5 min</span>
+                <span className="text-muted text-[10px]">3 hrs</span>
+              </div>
+            </div>
+
+            {/* Location — collapsed by default */}
+            <div>
+              <button
+                onClick={() => setShowLocation(!showLocation)}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-surface-2 border border-border rounded-2xl press transition-all hover:border-border/60">
+                <MapPin size={16} className={showLocation ? 'text-brand' : 'text-muted'} />
+                <span className={`flex-1 text-left text-sm font-semibold ${showLocation ? 'text-white' : 'text-muted'}`}>
+                  {city || gymLocation ? `${gymLocation || city}` : 'Add location'}
+                </span>
+                {showLocation ? <ChevronUp size={15} className="text-muted" /> : <ChevronDown size={15} className="text-muted" />}
+              </button>
+
+              {showLocation && (
+                <div className="mt-2 bg-surface-2 border border-border rounded-2xl p-4 space-y-3">
+                  <div>
+                    <label className="field-label">City</label>
+                    <input value={city} onChange={e => setCity(e.target.value)} placeholder="Dallas, TX" className="field-input" />
+                  </div>
+                  <div>
+                    <label className="field-label">Gym / Location</label>
+                    <input value={gymLocation} onChange={e => setGymLocation(e.target.value)} placeholder="e.g. LA Fitness, 5th St" className="field-input" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Caption */}
+            <div>
+              <label className="field-label">Caption</label>
+              <textarea
+                value={caption}
+                onChange={e => setCaption(e.target.value)}
+                placeholder="Write your thoughts down..."
+                rows={3}
+                maxLength={280}
+                className="field-input resize-none"
+              />
+              <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
+            </div>
+
+            {/* Photo */}
             {!preview ? (
               <div>
-                <button onClick={() => setShowPhotoOptions(!showPhotoOptions)}
+                <button
+                  onClick={() => setShowPhotoOptions(!showPhotoOptions)}
                   className="w-full bg-zinc-900 border border-dashed border-zinc-700 rounded-2xl px-4 py-5 text-center active:scale-[0.98] transition-transform">
                   <div className="text-3xl mb-2">📸</div>
                   <p className="text-white font-bold text-sm">Add a photo</p>
-                  <p className="text-zinc-500 text-xs mt-1">Posts with photos <span className="text-red-400 font-bold">grab way more attention</span></p>
+                  <p className="text-zinc-500 text-xs mt-1">Posts with photos <span className="text-brand font-bold">grab way more attention</span></p>
                 </button>
                 {showPhotoOptions && (
                   <div className="mt-2 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
                     <button onClick={() => cameraInputRef.current?.click()}
                       className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800 text-white text-sm font-semibold active:bg-zinc-800 transition-colors">
-                      <Camera size={18} className="text-red-500" /> Take a photo
+                      <Camera size={18} className="text-brand" /> Take a photo
                     </button>
                     <button onClick={() => fileInputRef.current?.click()}
                       className="w-full flex items-center gap-3 px-4 py-3.5 text-white text-sm font-semibold active:bg-zinc-800 transition-colors">
-                      <ImagePlus size={18} className="text-red-500" /> Choose from camera roll
+                      <ImagePlus size={18} className="text-brand" /> Choose from camera roll
                     </button>
                   </div>
                 )}
@@ -667,13 +734,6 @@ function CreateForm() {
               </div>
             )}
 
-            <div>
-              <label className="field-label">Caption</label>
-              <textarea value={caption} onChange={e => setCaption(e.target.value)}
-                placeholder="Write your thoughts down..." rows={3} maxLength={280} className="field-input resize-none" />
-              <p className="text-muted text-xs text-right mt-1">{caption.length}/280</p>
-            </div>
-
             {error && <p className="text-red-400 text-sm bg-red-400/10 rounded-xl px-4 py-3">{error}</p>}
             {!title.trim() && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3">
@@ -683,7 +743,9 @@ function CreateForm() {
 
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setStep(2)} className="py-4 rounded-2xl border border-border text-muted font-semibold press">← Back</button>
-              <button onClick={handleSubmit} disabled={loading || !title.trim()}
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !title.trim()}
                 className="bg-brand text-white font-display text-xl py-4 rounded-2xl press disabled:opacity-40 shadow-lg shadow-brand/20 tracking-wide">
                 {loading ? 'POSTING...' : 'POST IT'}
               </button>
@@ -692,6 +754,7 @@ function CreateForm() {
         )}
       </div>
 
+      {/* ── Preset save modal (post-submit) ── */}
       {showPresetSave && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={() => { setShowPresetSave(false); router.push('/feed') }}>
           <div className="w-full max-w-md mx-auto bg-[#1a1a1a] border border-border rounded-t-3xl p-6 pb-28 animate-slide-up"
@@ -701,11 +764,13 @@ function CreateForm() {
             <p className="text-muted text-sm mb-5">Want to save this as a preset workout?</p>
             <input value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="e.g. My Push Day" className="field-input mb-3" />
             <div className="flex gap-3">
-              <button onClick={() => { setShowPresetSave(false); router.push('/feed') }}
+              <button
+                onClick={() => { setShowPresetSave(false); router.push('/feed') }}
                 className="flex-1 py-3 rounded-2xl border border-border text-muted font-semibold press">
                 Skip
               </button>
-              <button onClick={async () => { await savePreset(); router.push('/feed') }}
+              <button
+                onClick={async () => { await savePreset(); router.push('/feed') }}
                 disabled={saving || !presetName.trim()}
                 className="flex-1 py-3 rounded-2xl bg-brand text-white font-semibold press disabled:opacity-40 flex items-center justify-center gap-2">
                 <Save size={16} /> Save Preset
@@ -719,6 +784,9 @@ function CreateForm() {
         .field-label { display: block; font-size: 0.65rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 0.375rem; }
         .field-input { width: 100%; background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 0.75rem; padding: 0.75rem 1rem; color: white; font-size: 0.875rem; transition: all 0.15s; }
         .field-input::placeholder { color: #666; }
+        input[type=range] { -webkit-appearance: none; appearance: none; background: #2e2e2e; border-radius: 9999px; height: 4px; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #ef4444; cursor: pointer; border: 3px solid #0f0f0f; }
+        input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #ef4444; cursor: pointer; border: 3px solid #0f0f0f; }
       `}</style>
 
       <BottomNav />
